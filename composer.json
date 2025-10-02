@@ -1,0 +1,8 @@
+{
+    "name": "root/tamara",
+    "minimum-stability": "stable",
+    "require": {
+        "dompdf/dompdf": "^2.0",
+        "phpoffice/phpspreadsheet": "^1.29"
+    }
+}
