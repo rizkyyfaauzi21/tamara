@@ -188,52 +188,223 @@ if (isset($_GET['delete'])) {
 }
 
 /* ------------ Insert STO baru (dengan files[]) ------------ */
+// if ($_SERVER['REQUEST_METHOD']==='POST' && !isset($_POST['action'])) {
+//   // duplikat
+//   $chk = $conn->prepare("SELECT id FROM sto WHERE nomor_sto=?");
+//   $chk->execute([$_POST['nomor_sto']]);
+//   if ($chk->rowCount()) {
+//     $_SESSION['error']="Nomor STO sudah terdaftar!";
+//     header('Location: index.php?page=master_sto'); exit;
+//   }
+
+//   $ins = $conn->prepare("
+//     INSERT INTO sto (
+//       nomor_sto,tanggal_terbit,keterangan,
+//       gudang_id,jenis_transaksi,transportir,
+//       tonase_normal,tonase_lembur,status,created_at
+//     ) VALUES (
+//       :nomor_sto,:tanggal_terbit,:keterangan,
+//       :gudang_id,:jenis_transaksi,:transportir,
+//       :tonase_normal,:tonase_lembur,'NOT_USED',NOW()
+//     )
+//   ");
+//   $ins->execute([
+//     'nomor_sto'       => $_POST['nomor_sto'],
+//     'tanggal_terbit'  => $_POST['tanggal_terbit'],
+//     'keterangan'      => $_POST['keterangan'] ?: null,
+//     'gudang_id'       => $_POST['gudang_id'],
+//     'jenis_transaksi' => $_POST['jenis_transaksi'],
+//     'transportir'     => $_POST['transportir'],
+//     'tonase_normal'   => $_POST['tonase_normal'],
+//     'tonase_lembur'   => $_POST['tonase_lembur'],
+//   ]);
+//   $newId = (int)$conn->lastInsertId();
+
+//   // simpan lampiran baru
+//   $debug = [];
+//   $saved = save_uploaded_files($conn, $newId, 'files', $UPLOAD_DIR, $ALLOWED_EXT, $MAX_BYTES, $debug);
+
+//   if ($debug) {
+//     $_SESSION['error'] = 'Sebagian lampiran gagal diunggah: ' . implode(' | ', $debug);
+//   }
+//   if ($saved > 0) {
+//     $_SESSION['success'] = "STO berhasil didaftarkan. Lampiran tersimpan: $saved file.";
+//   } else {
+//     $_SESSION['success'] = "STO berhasil didaftarkan.";
+//   }
+//   header('Location: index.php?page=master_sto'); exit;
+// }
+
 if ($_SERVER['REQUEST_METHOD']==='POST' && !isset($_POST['action'])) {
-  // duplikat
-  $chk = $conn->prepare("SELECT id FROM sto WHERE nomor_sto=?");
-  $chk->execute([$_POST['nomor_sto']]);
-  if ($chk->rowCount()) {
-    $_SESSION['error']="Nomor STO sudah terdaftar!";
+    // DEBUG sementara: lihat payload di error log (hapus setelah verifikasi)
+    error_log("MASTER_STO POST: " . print_r($_POST, true));
+    error_log("MASTER_STO FILES: " . print_r($_FILES, true));
+
+    // normalisasi input (menerima scalar atau array)
+    $jenis_raw       = $_POST['jenis_transaksi'] ?? [];
+    $ton_normal_raw  = $_POST['tonase_normal'] ?? [];
+    $ton_lembur_raw  = $_POST['tonase_lembur'] ?? [];
+    $transportir_raw = $_POST['transportir'] ?? [];
+    $ket_raw         = $_POST['keterangan'] ?? [];
+
+    if (!is_array($jenis_raw))       $jenis_raw       = [$jenis_raw];
+    if (!is_array($ton_normal_raw))  $ton_normal_raw  = [$ton_normal_raw];
+    if (!is_array($ton_lembur_raw))  $ton_lembur_raw  = [$ton_lembur_raw];
+    if (!is_array($transportir_raw)) $transportir_raw = [$transportir_raw];
+    if (!is_array($ket_raw))         $ket_raw         = [$ket_raw];
+
+    // bangun baris kegiatan dan hitung agregat
+    $rows = [];
+    $sum_normal = 0.0;
+    $sum_lembur = 0.0;
+    $jenis_names = [];
+    $transportir_list = [];
+
+    $count = max(count($jenis_raw), count($ton_normal_raw), count($ton_lembur_raw), count($transportir_raw), count($ket_raw));
+    for ($i = 0; $i < $count; $i++) {
+        $j = trim((string)($jenis_raw[$i] ?? ''));
+        $tn = (float) str_replace(',', '.', ($ton_normal_raw[$i] ?? 0));
+        $tl = (float) str_replace(',', '.', ($ton_lembur_raw[$i] ?? 0));
+        $tr = trim((string)($transportir_raw[$i] ?? ''));
+        $kt = trim((string)($ket_raw[$i] ?? ''));
+
+        // skip baris kosong (tidak ada jenis + tonase 0)
+        if ($j === '' && $tn == 0.0 && $tl == 0.0) continue;
+
+        $rows[] = [
+            'jenis' => $j,
+            'tonase_normal' => $tn,
+            'tonase_lembur' => $tl,
+            'transportir' => $tr,
+            'keterangan' => $kt,
+        ];
+
+        $sum_normal += $tn;
+        $sum_lembur += $tl;
+        if ($j !== '') $jenis_names[] = $j;
+        if ($tr !== '') $transportir_list[] = $tr;
+    }
+
+    if (empty($rows)) {
+        $_SESSION['error'] = 'Minimal satu kegiatan harus diisi.';
+        header('Location: index.php?page=master_sto'); exit;
+    }
+
+    // gabungkan jenis & transportir menjadi string (disimpan di tabel sto)
+    $jenis_join = implode(', ', array_unique($jenis_names));
+    $transportir_join = implode(', ', array_unique($transportir_list));
+
+    // Cek duplikat nomor_sto
+    $chk = $conn->prepare("SELECT id FROM sto WHERE nomor_sto=?");
+    $chk->execute([ (is_array($_POST['nomor_sto'] ?? null) ? ($_POST['nomor_sto'][0] ?? '') : ($_POST['nomor_sto'] ?? '')) ]);
+    if ($chk->rowCount()) {
+        $_SESSION['error'] = "Nomor STO sudah terdaftar!";
+        header('Location: index.php?page=master_sto'); exit;
+    }
+
+    // Simpan 1 record STO dengan agregat kegiatan
+    $ins = $conn->prepare("
+      INSERT INTO sto (
+        nomor_sto, tanggal_terbit, keterangan,
+        gudang_id, jenis_transaksi, transportir,
+        tonase_normal, tonase_lembur, status, created_at
+      ) VALUES (
+        :nomor_sto, :tanggal_terbit, :keterangan,
+        :gudang_id, :jenis_transaksi, :transportir,
+        :tonase_normal, :tonase_lembur, 'NOT_USED', NOW()
+      )
+    ");
+    $ins->execute([
+      'nomor_sto'      => is_array($_POST['nomor_sto']) ? ($_POST['nomor_sto'][0] ?? '') : ($_POST['nomor_sto'] ?? ''),
+      'tanggal_terbit' => is_array($_POST['tanggal_terbit']) ? ($_POST['tanggal_terbit'][0] ?? '') : ($_POST['tanggal_terbit'] ?? ''),
+      'keterangan'     => is_array($_POST['keterangan']) ? ($_POST['keterangan'][0] ?? null) : ($_POST['keterangan'] ?? null),
+      'gudang_id'      => is_array($_POST['gudang_id']) ? ($_POST['gudang_id'][0] ?? '') : ($_POST['gudang_id'] ?? ''),
+      'jenis_transaksi'=> $jenis_join,
+      'transportir'    => $transportir_join,
+      'tonase_normal'  => $sum_normal,
+      'tonase_lembur'  => $sum_lembur,
+    ]);
+    $newId = (int)$conn->lastInsertId();
+
+    // Simpan lampiran (files[])
+    $debug = [];
+    $saved = save_uploaded_files($conn, $newId, 'files', $UPLOAD_DIR, $ALLOWED_EXT, $MAX_BYTES, $debug);
+
+    // Simpan detail kegiatan sebagai JSON di kolom keterangan_kegiatan (pastikan kolom ada: TEXT/JSON)
+    try {
+        $updJson = $conn->prepare("UPDATE sto SET keterangan_kegiatan = :json WHERE id = :id");
+        $updJson->execute(['json' => json_encode($rows, JSON_UNESCAPED_UNICODE), 'id' => $newId]);
+    } catch (PDOException $e) {
+        // catat error tapi jangan crash; beritahu user
+        error_log("Gagal menyimpan keterangan_kegiatan JSON: " . $e->getMessage());
+        // jangan set $_SESSION['error'] dengan pesan raw di production
+    }
+
+    $_SESSION['success'] = "STO berhasil didaftarkan dengan " . count($rows) . " kegiatan.";
+    if ($debug) $_SESSION['error'] = implode(' | ', $debug);
+
     header('Location: index.php?page=master_sto'); exit;
-  }
-
-  $ins = $conn->prepare("
-    INSERT INTO sto (
-      nomor_sto,tanggal_terbit,keterangan,
-      gudang_id,jenis_transaksi,transportir,
-      tonase_normal,tonase_lembur,status,created_at
-    ) VALUES (
-      :nomor_sto,:tanggal_terbit,:keterangan,
-      :gudang_id,:jenis_transaksi,:transportir,
-      :tonase_normal,:tonase_lembur,'NOT_USED',NOW()
-    )
-  ");
-  $ins->execute([
-    'nomor_sto'       => $_POST['nomor_sto'],
-    'tanggal_terbit'  => $_POST['tanggal_terbit'],
-    'keterangan'      => $_POST['keterangan'] ?: null,
-    'gudang_id'       => $_POST['gudang_id'],
-    'jenis_transaksi' => $_POST['jenis_transaksi'],
-    'transportir'     => $_POST['transportir'],
-    'tonase_normal'   => $_POST['tonase_normal'],
-    'tonase_lembur'   => $_POST['tonase_lembur'],
-  ]);
-  $newId = (int)$conn->lastInsertId();
-
-  // simpan lampiran baru
-  $debug = [];
-  $saved = save_uploaded_files($conn, $newId, 'files', $UPLOAD_DIR, $ALLOWED_EXT, $MAX_BYTES, $debug);
-
-  if ($debug) {
-    $_SESSION['error'] = 'Sebagian lampiran gagal diunggah: ' . implode(' | ', $debug);
-  }
-  if ($saved > 0) {
-    $_SESSION['success'] = "STO berhasil didaftarkan. Lampiran tersimpan: $saved file.";
-  } else {
-    $_SESSION['success'] = "STO berhasil didaftarkan.";
-  }
-  header('Location: index.php?page=master_sto'); exit;
 }
+/* ------------ Insert STO baru (dengan banyak kegiatan + files[]) ------------ */
+// if ($_SERVER['REQUEST_METHOD']==='POST' && !isset($_POST['action'])) {
+//     // Cek duplikat
+//     $chk = $conn->prepare("SELECT id FROM sto WHERE nomor_sto=?");
+//     $chk->execute([$_POST['nomor_sto']]);
+//     if ($chk->rowCount()) {
+//         $_SESSION['error'] = "Nomor STO sudah terdaftar!";
+//         header('Location: index.php?page=master_sto');
+//         exit;
+//     }
+
+//     // Simpan data utama STO
+//     $insSto = $conn->prepare("
+//         INSERT INTO sto (nomor_sto, tanggal_terbit, keterangan, gudang_id, status, created_at)
+//         VALUES (:nomor_sto, :tanggal_terbit, :keterangan, :gudang_id, 'NOT_USED', NOW())
+//     ");
+//     $insSto->execute([
+//         'nomor_sto'      => $_POST['nomor_sto'],
+//         'tanggal_terbit' => $_POST['tanggal_terbit'],
+//         'keterangan'     => $_POST['keterangan'] ?: null,
+//         'gudang_id'      => $_POST['gudang_id'],
+//     ]);
+//     $stoId = (int)$conn->lastInsertId();
+
+//     // Pastikan semua field kegiatan ada
+//     $jenis_transaksi = $_POST['jenis_transaksi'] ?? [];
+//     $tonase_normal   = $_POST['tonase_normal'] ?? [];
+//     $tonase_lembur   = $_POST['tonase_lembur'] ?? [];
+//     $transportir     = $_POST['transportir'] ?? [];
+//     $ketKegiatan     = $_POST['keterangan_kegiatan'] ?? [];
+
+//     // Simpan setiap kegiatan
+//     if ($jenis_transaksi) {
+//         $insKegiatan = $conn->prepare("
+//             INSERT INTO sto_kegiatan (sto_id, jenis_transaksi, tonase_normal, tonase_lembur, transportir, keterangan)
+//             VALUES (?, ?, ?, ?, ?, ?)
+//         ");
+//         for ($i = 0; $i < count($jenis_transaksi); $i++) {
+//             $insKegiatan->execute([
+//                 $stoId,
+//                 $jenis_transaksi[$i],
+//                 $tonase_normal[$i] ?? 0,
+//                 $tonase_lembur[$i] ?? 0,
+//                 $transportir[$i] ?? '',
+//                 $ketKegiatan[$i] ?? null,
+//             ]);
+//         }
+//     }
+
+//     // Simpan lampiran
+//     $debug = [];
+//     $saved = save_uploaded_files($conn, $stoId, 'files', $UPLOAD_DIR, $ALLOWED_EXT, $MAX_BYTES, $debug);
+
+//     $_SESSION['success'] = "STO berhasil didaftarkan dengan " . count($jenis_transaksi) . " kegiatan.";
+//     if ($debug) $_SESSION['error'] = implode(' | ', $debug);
+
+//     header('Location: index.php?page=master_sto');
+//     exit;
+// }
+
 
 /* ------------ Data untuk View ------------ */
 $gudangs = $conn->query("SELECT id,nama_gudang FROM gudang ORDER BY nama_gudang")->fetchAll(PDO::FETCH_ASSOC);
