@@ -47,65 +47,57 @@
         <?php endforeach;?>
       </select>
     </div>
+    <div class="col-md-4">
+      <label class="form-label">Jenis Kegiatan</label>
+      <select name="jenis_transaksi" class="form-control" required>
+        <option value="">-- Pilih --</option>
+        <option value="BONGKAR">BONGKAR</option>
+        <option value="MUAT">MUAT</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Tonase Normal (Ton)</label>
+      <input type="number" step="0.01" name="tonase_normal" id="tonase_normal" class="form-control" value="0">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Tonase Lembur (Ton)</label>
+      <input type="number" step="0.01" name="tonase_lembur" id="tonase_lembur" class="form-control" value="0">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Total Tonase</label>
+      <input type="text" id="total_tonase" class="form-control" readonly>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Transportir</label>
+      <input type="text" name="transportir" class="form-control" placeholder="Nama Transportir" required>
+    </div>
+    <div class="col-md-8">
+      <label class="form-label">Keterangan</label>
+      <input type="text" name="keterangan" class="form-control" placeholder="Opsional">
+    </div>
 
-     <!-- BAGIAN KEGIATAN -->
-    <div id="kegiatan-wrapper" class="row g-3">
-      <div class="kegiatan-item row g-3 mb-2 border rounded p-3">
-        <div class="col-md-4">
-          <label class="form-label">Jenis Kegiatan</label>
-          <select name="jenis_transaksi[]" class="form-control" required>
-            <option value="">-- Pilih --</option>
-            <option value="BONGKAR">BONGKAR</option>
-            <option value="MUAT">MUAT</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Tonase Normal (Ton)</label>
-          <input type="number" step="0.01" name="tonase_normal[]" class="form-control tonase-normal" value="0">
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Tonase Lembur (Ton)</label>
-          <input type="number" step="0.01" name="tonase_lembur[]" class="form-control tonase-lembur" value="0">
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Total Tonase</label>
-          <input type="text" class="form-control total-tonase" readonly>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Transportir</label>
-          <input type="text" name="transportir[]" class="form-control" placeholder="Nama Transportir" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Keterangan</label>
-          <input type="text" name="keterangan[]" class="form-control" placeholder="Opsional">  
-        </div>
-        <div class="col-12 text-end">
-          <button type="button" class="btn btn-danger btn-sm btn-hapus-kegiatan">Hapus Kegiatan</button>
-        </div>
+    <!-- =========== Upload Multi File (baru) =========== -->
+    <div class="col-12">
+      <label class="form-label">Lampiran (boleh banyak)</label>
+
+      <div id="dz-create" class="uploader p-4 text-center mb-2">
+        <div class="cloud mb-2">☁️⬆️</div>
+        <div class="cta">Click To Upload</div>
+        <small class="text-muted d-block mt-1">
+          atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
+        </small>
       </div>
+
+      <input id="files-create" type="file" name="files[]" class="d-none" multiple
+             accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx">
+
+      <ul id="list-create" class="file-list"></ul>
     </div>
 
-    <button type="button" id="tambah-kegiatan" class="btn btn-success mt-2">+ Tambah Kegiatan</button>
-
-  <!-- Upload multi file -->
-  <div class="col-12 mt-4">
-    <label class="form-label">Lampiran (boleh banyak)</label>
-    <div id="dz-create" class="uploader p-4 text-center mb-2">
-      <div class="cloud mb-2">☁️⬆️</div>
-      <div class="cta">Click To Upload</div>
-      <small class="text-muted d-block mt-1">
-        atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
-      </small>
+    <div class="col-12 text-end">
+      <button type="submit" class="btn btn-primary">Daftar STO</button>
     </div>
-    <input id="files-create" type="file" name="files[]" class="d-none" multiple
-           accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx">
-    <ul id="list-create" class="file-list"></ul>
-  </div>
-
-  <div class="col-12 text-end mt-3">
-    <button type="submit" class="btn btn-primary">Daftar STO</button>
-  </div>
-</form>
+  </form>
 
   <!-- ================= 2) Filter Tabel ================= -->
   <div class="row g-2 mb-3">
@@ -269,56 +261,13 @@
 <!-- ================= Script ================= -->
 <script>
 document.addEventListener('DOMContentLoaded', ()=>{
-  const wrapper = document.getElementById('kegiatan-wrapper');
-  const btnAdd = document.getElementById('tambah-kegiatan');
-
-  // Fungsi hitung total tonase per kegiatan
-  function hitungTotal(item) {
-    const n = item.querySelector('.tonase-normal');
-    const l = item.querySelector('.tonase-lembur');
-    const t = item.querySelector('.total-tonase');
-    function update() {
-      const total = (parseFloat(n.value) || 0) + (parseFloat(l.value) || 0);
-      t.value = total.toFixed(2);
-    }
-    n.addEventListener('input', update);
-    l.addEventListener('input', update);
-    update();
-  }
-
-  // Inisialisasi blok pertama
-  wrapper.querySelectorAll('.kegiatan-item').forEach(hitungTotal);
-
-  // Tambah kegiatan baru
-  btnAdd.addEventListener('click', function() {
-    const clone = wrapper.querySelector('.kegiatan-item').cloneNode(true);
-
-    // Reset semua input di clone
-    clone.querySelectorAll('input, select').forEach(el => {
-      if (el.tagName === 'SELECT') el.selectedIndex = 0;
-      else if (el.classList.contains('total-tonase')) el.value = '';
-      else el.value = '';
-    });
-
-    wrapper.appendChild(clone);
-    hitungTotal(clone);
-  });
-
-  // Hapus kegiatan
-  wrapper.addEventListener('click', function(e) {
-    if (e.target.classList.contains('btn-hapus-kegiatan')) {
-      const all = wrapper.querySelectorAll('.kegiatan-item');
-      if (all.length > 1) e.target.closest('.kegiatan-item').remove();
-      else alert('Minimal satu kegiatan harus ada.');
-    }
-  });
 
   // total tonase (form create)
-  // const n = document.getElementById('tonase_normal'),
-  //       l = document.getElementById('tonase_lembur'),
-  //       t = document.getElementById('total_tonase');
-  // function updTotal(){ t.value = ((parseFloat(n.value)||0)+(parseFloat(l.value)||0)).toFixed(2) }
-  // n.addEventListener('input',updTotal); l.addEventListener('input',updTotal); updTotal();
+  const n = document.getElementById('tonase_normal'),
+        l = document.getElementById('tonase_lembur'),
+        t = document.getElementById('total_tonase');
+  function updTotal(){ t.value = ((parseFloat(n.value)||0)+(parseFloat(l.value)||0)).toFixed(2) }
+  n.addEventListener('input',updTotal); l.addEventListener('input',updTotal); updTotal();
 
   // filter tabel (client side)
   document.querySelectorAll('.filter-input').forEach(inp=>{
