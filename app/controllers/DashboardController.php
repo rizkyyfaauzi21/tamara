@@ -70,11 +70,12 @@ require_once __DIR__ . '/../views/layout/header.php';
               <path d="M8 8h8M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.6" />
             </svg>
           </div>
-          <h5>Monitoring Tagihan</h5>
+          <h5>Pembuatan Laporan STO</h5>
           <p>Pantau tagihan dan status approval secara real-time.</p>
         </div>
       </a>
 
+      <?php if ($role !== 'ADMIN_GUDANG' && $role !== 'KEPALA_GUDANG'): ?>
       <!-- Verifikasi Tagihan via QR (approve/reject setelah scan) -->
       <a href="index.php?page=scan" class="tile" style="text-decoration:none; color:inherit;">
         <div class="tile-body">
@@ -89,6 +90,7 @@ require_once __DIR__ . '/../views/layout/header.php';
           <p>Scan QR untuk memeriksa detail tagihan sebelum approve atau reject.</p>
         </div>
       </a>
+      <?php endif; ?>
 
       <!-- Data Gudang (Superadmin only) -->
       <?php if ($role === 'SUPERADMIN'): ?>
