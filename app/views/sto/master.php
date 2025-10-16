@@ -163,7 +163,7 @@
           <td>
             <?php if ($s['status'] === 'NOT_USED'): ?>
               <?php if ($s['pilihan'] === 'DIPILIH'): ?>
-                <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPER_ADMIN'): ?>
+                <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPERADMIN'): ?>
                   <button class="btn btn-sm btn-success toggle-pilih" data-id="<?= $s['id'] ?>" data-next="BELUM_DIPILIH">
                     Dipilih
                   </button>
@@ -171,7 +171,7 @@
                   <span class="badge bg-success">Dipilih</span>
                 <?php endif; ?>
               <?php else: ?>
-                <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPER_ADMIN'): ?>
+                <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPERADMIN'): ?>
                   <button class="btn btn-sm btn-outline-primary toggle-pilih" data-id="<?= $s['id'] ?>" data-next="DIPILIH">
                     Belum Dipilih
                   </button>
