@@ -131,6 +131,26 @@ function save_uploaded_files(PDO $conn, int $stoId, string $field, string $dir, 
     return $saved;
 }
 
+/* ------------ Toggle Pilihan (AJAX) ------------ */
+if (($_GET['action'] ?? '') === 'toggle_pilih' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $stoId = $_POST['sto_id'] ?? null;
+    $newPilihan = $_POST['pilihan'] ?? null;
+    
+    if ($stoId && in_array($newPilihan, ['DIPILIH', 'BELUM_DIPILIH'], true)) {
+        // Pastikan hanya STO dengan status 'NOT_USED' yang bisa diubah
+        $stmt = $conn->prepare("UPDATE sto SET pilihan = :pilihan WHERE id = :id AND status = 'NOT_USED'");
+        $stmt->execute([':pilihan' => $newPilihan, ':id' => $stoId]);
+        
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true]);
+        exit;
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Invalid request']);
+    exit;
+}
+
 /* ------------ Update STO (AJAX) ------------ */
 if ($_SERVER['REQUEST_METHOD']==='POST' && (($_POST['action'] ?? '')==='update')) {
     $upd = $conn->prepare("
@@ -143,7 +163,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && (($_POST['action'] ?? '')==='update')
         tonase_lembur   = :tonase_lembur,
         transportir     = :transportir,
         keterangan      = :keterangan,
-        status          = :status
+        status          = :status,
+        pilihan         = :pilihan
       WHERE id = :id
     ");
     $upd->execute([
@@ -156,6 +177,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && (($_POST['action'] ?? '')==='update')
       'transportir'     => $_POST['transportir'],
       'keterangan'      => $_POST['keterangan'] ?: null,
       'status'          => $_POST['status'],
+      'pilihan'         => $_POST['pilihan'],
       'id'              => $_POST['id'],
     ]);
 
@@ -167,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && (($_POST['action'] ?? '')==='update')
     echo json_encode([
       'success' => true,
       'saved'   => $saved,
-      'errors'  => $debug, // kirimkan biar kelihatan di network tab kalau ada masalah
+      'errors'  => $debug,
     ]);
     exit;
 }
@@ -201,13 +223,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !isset($_POST['action'])) {
     INSERT INTO sto (
       nomor_sto,tanggal_terbit,keterangan,
       gudang_id,jenis_transaksi,transportir,
-      tonase_normal,tonase_lembur,status,created_at
+      tonase_normal,tonase_lembur,status,pilihan,created_at
     ) VALUES (
       :nomor_sto,:tanggal_terbit,:keterangan,
       :gudang_id,:jenis_transaksi,:transportir,
-      :tonase_normal,:tonase_lembur,'NOT_USED',NOW()
+      :tonase_normal,:tonase_lembur,'NOT_USED','BELUM_DIPILIH',NOW()
     )
   ");
+  
   $ins->execute([
     'nomor_sto'       => $_POST['nomor_sto'],
     'tanggal_terbit'  => $_POST['tanggal_terbit'],

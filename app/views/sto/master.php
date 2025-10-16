@@ -129,6 +129,7 @@
           <th>Keterangan</th>
           <th>Created</th>
           <th>Aksi</th>
+          <th>Pilih Nomor STO</th>
         </tr>
       </thead>
       <tbody>
@@ -157,7 +158,30 @@
           <td class="text-nowrap">
             <button data-id="<?= $s['id'] ?>" class="btn btn-sm btn-warning btn-edit">Detail &amp; Edit</button>
             <a href="?page=master_sto&delete=<?= $s['id'] ?>" class="btn btn-sm btn-danger"
-               onclick="return confirm('Hapus STO ini beserta lampiran?')">Hapus</a>
+              onclick="return confirm('Hapus STO ini beserta lampiran?')">Hapus</a>
+          </td>
+          <td>
+            <?php if ($s['status'] === 'NOT_USED'): ?>
+              <?php if ($s['pilihan'] === 'DIPILIH'): ?>
+                <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPER_ADMIN'): ?>
+                  <button class="btn btn-sm btn-success toggle-pilih" data-id="<?= $s['id'] ?>" data-next="BELUM_DIPILIH">
+                    Dipilih
+                  </button>
+                <?php else: ?>
+                  <span class="badge bg-success">Dipilih</span>
+                <?php endif; ?>
+              <?php else: ?>
+                <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPER_ADMIN'): ?>
+                  <button class="btn btn-sm btn-outline-primary toggle-pilih" data-id="<?= $s['id'] ?>" data-next="DIPILIH">
+                    Belum Dipilih
+                  </button>
+                <?php else: ?>
+                  <span class="badge bg-outline-primary text-primary border border-primary">Belum Dipilih</span>
+                <?php endif; ?>
+              <?php endif; ?>
+            <?php else: ?>
+              <span class="badge bg-secondary">Sudah Laporan</span>
+            <?php endif; ?>
           </td>
         </tr>
         <?php endforeach;?>
@@ -218,11 +242,18 @@
             <label class="form-label">Keterangan</label>
             <input type="text" name="keterangan" id="edit-keterangan" class="form-control">
           </div>
-          <div class="col-md-6">
+          <div class="col-md-3">
             <label class="form-label">Status</label>
             <select name="status" id="edit-status" class="form-control">
-              <option value="NOT_USED">NOT_USED</option>
               <option value="USED">USED</option>
+              <option value="NOT_USED">NOT_USED</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Pilihan</label>
+            <select name="pilihan" id="edit-pilihan" class="form-control">
+              <option value="BELUM_DIPILIH">BELUM_DIPILIH</option>
+              <option value="DIPILIH">DIPILIH</option>
             </select>
           </div>
 
@@ -374,6 +405,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         document.getElementById('edit-transportir').value = s.transportir;
         document.getElementById('edit-keterangan').value  = s.keterangan ?? '';
         document.getElementById('edit-status').value      = s.status;
+        document.getElementById('edit-pilihan').value     = s.pilihan;
 
         // render file existing
         const ul = document.getElementById('current-files');
@@ -406,6 +438,27 @@ document.addEventListener('DOMContentLoaded', ()=>{
       .then(res=>{
         if(res.success){ editModal.hide(); window.location.reload(); }
       });
+  });
+
+  // ========= Tombol Pilih / Belum Dipilih =========
+  document.querySelectorAll('.toggle-pilih').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      const id = btn.dataset.id;
+      const next = btn.dataset.next;
+
+      const res = await fetch('index.php?page=master_sto&action=toggle_pilih', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `sto_id=${id}&pilihan=${next}`
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Gagal memperbarui status pilihan!');
+      }
+    });
   });
 
 });
