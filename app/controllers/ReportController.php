@@ -3,20 +3,24 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../../config/database.php';
 
-if (!isset($_SESSION['user_id'])) { header('Location: index.php?page=login'); exit; }
+if (!isset($_SESSION['user_id'])) { 
+    header('Location: index.php?page=login'); 
+    exit; 
+}
 
 // Master data
 $months  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 $types   = ['BONGKAR','MUAT'];
 $gudangs = $conn->query("SELECT id, nama_gudang FROM gudang ORDER BY nama_gudang")->fetchAll(PDO::FETCH_ASSOC);
 
-// HANYA STO NOT_USED untuk pembuatan invoice
+// HANYA STO yang DIPILIH dan NOT_USED untuk pembuatan invoice
 $stoList = $conn->query("
   SELECT s.id, s.nomor_sto, s.tanggal_terbit, s.keterangan, s.transportir,
-         s.tonase_normal, s.tonase_lembur, g.nama_gudang
+         s.tonase_normal, s.tonase_lembur, s.jenis_transaksi, g.nama_gudang, g.id as gudang_id
   FROM sto s
   JOIN gudang g ON s.gudang_id=g.id
-  WHERE s.status='NOT_USED'
+  WHERE s.status='NOT_USED' 
+    AND s.pilihan='DIPILIH'
   ORDER BY s.tanggal_terbit DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
