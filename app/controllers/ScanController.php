@@ -3,18 +3,24 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../../config/database.php';
 
-if (!isset($_SESSION['user_id'])) { header('Location: index.php?page=login'); exit; }
+if (!isset($_SESSION['user_id'])) {
+    header('Location: index.php?page=login');
+    exit;
+}
 
 $userId = (int) $_SESSION['user_id'];
 $stmt   = $conn->prepare("SELECT `role` FROM `users` WHERE `id`=?");
 $stmt->execute([$userId]);
 $user   = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$user) { header('HTTP/1.1 403 Forbidden'); exit('User not found'); }
+if (!$user) {
+    header('HTTP/1.1 403 Forbidden');
+    exit('User not found');
+}
 $role = $user['role'];
 
 $allowed = [
-    'ADMIN_GUDANG',
-    'KEPALA_GUDANG',
+    // 'ADMIN_GUDANG',
+    // 'KEPALA_GUDANG',
     'ADMIN_WILAYAH',
     'PERWAKILAN_PI',
     'ADMIN_PCS',
@@ -29,8 +35,8 @@ if (!in_array($role, $allowed, true)) {
 
 // urutan alur (sesuai kebutuhan proses)
 $flow = [
-    'ADMIN_GUDANG',
-    'KEPALA_GUDANG',
+    // 'ADMIN_GUDANG',
+    // 'KEPALA_GUDANG',
     'ADMIN_WILAYAH',
     'PERWAKILAN_PI',
     'ADMIN_PCS',
@@ -45,15 +51,15 @@ $idxOf = function (string $r) use ($flow) {
 $action = $_GET['action'] ?? 'form';
 
 // util: cari current dari logs
-$resolveCurrent = function(array $logs) use ($flow, $idxOf){
-    $current = 'ADMIN_GUDANG';
+$resolveCurrent = function (array $logs) use ($flow, $idxOf) {
+    $current = 'ADMIN_WILAYAH';
     if (!$logs) return $current;
     $last = end($logs);
     $i    = $idxOf($last['role']);
     if ($last['decision'] === 'APPROVED') {
-        $current = ($i!==null && isset($flow[$i+1])) ? $flow[$i+1] : null;
+        $current = ($i !== null && isset($flow[$i + 1])) ? $flow[$i + 1] : null;
     } else { // REJECTED => turun satu
-        if ($i!==null) $current = ($i>0) ? $flow[$i-1] : $flow[0];
+        if ($i !== null) $current = ($i > 0) ? $flow[$i - 1] : $flow[0];
     }
     return $current;
 };
@@ -71,7 +77,10 @@ if ($action === 'fetch') {
         ");
         $stmt->execute([$invId]);
         $inv = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$inv) { http_response_code(404); exit('Invoice tidak ditemukan'); }
+        if (!$inv) {
+            http_response_code(404);
+            exit('Invoice tidak ditemukan');
+        }
 
         $stmt = $conn->prepare("
           SELECT il.*, s.`nomor_sto`, s.`tanggal_terbit`, s.`tonase_normal`, s.`tonase_lembur`
@@ -103,10 +112,10 @@ if ($action === 'fetch') {
 
         // pass ke view
         $userIdView = $userId;
-        require __DIR__.'/../views/scan/invoice_detail.php';
+        require __DIR__ . '/../views/scan/invoice_detail.php';
     } catch (Throwable $e) {
         http_response_code(500);
-        echo 'Fetch error: '.$e->getMessage();
+        echo 'Fetch error: ' . $e->getMessage();
     }
     exit;
 }
@@ -133,14 +142,16 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $current = $resolveCurrent($logs);
         if ($current !== $role) {
-            echo json_encode(['success'=>false,'message'=>'Bukan giliran Anda untuk memutuskan.']); exit;
+            echo json_encode(['success' => false, 'message' => 'Bukan giliran Anda untuk memutuskan.']);
+            exit;
         }
 
         // cegah double decide oleh role yang sama di siklus yang sama
         if ($logs) {
             $last = end($logs);
             if ((int)$last['created_by'] === $userId && $last['role'] === $role) {
-                echo json_encode(['success'=>false,'message'=>'Anda sudah memberi keputusan untuk siklus ini.']); exit;
+                echo json_encode(['success' => false, 'message' => 'Anda sudah memberi keputusan untuk siklus ini.']);
+                exit;
             }
         }
 
@@ -156,19 +167,38 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $next = null;
         if ($i !== null) {
             if ($status === 'APPROVED') {
-                if (isset($flow[$i+1])) $next = $flow[$i+1];      // naik satu
+                if (isset($flow[$i + 1])) $next = $flow[$i + 1];      // naik satu
             } else {
-                $next = ($i>0) ? $flow[$i-1] : $flow[0];          // turun satu
+                $next = ($i > 0) ? $flow[$i - 1] : $flow[0];          // turun satu
             }
         }
+
+        $no_soj = $_POST['no_soj'] ?? null;
+        $no_mmj = $_POST['no_mmj'] ?? null;
+
 
         // update posisi (gunakan backtick)
         $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
         $upd->execute([$next, $invId]); // $next bisa null saat selesai
 
-        echo json_encode(['success'=>true,'next'=>$next]); 
+       if ($role === 'ADMIN_PCS') {
+    $no_soj = $_POST['no_soj'] ?? null;
+    $no_mmj = $_POST['no_mmj'] ?? null;
+    $upd = $conn->prepare("UPDATE `invoice` 
+        SET `current_role` = ?, 
+            `no_soj` = COALESCE(?, `no_soj`), 
+            `no_mmj` = COALESCE(?, `no_mmj`)
+        WHERE `id` = ?");
+    $upd->execute([$next, $no_soj, $no_mmj, $invId]);
+} else {
+    $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
+    $upd->execute([$next, $invId]);
+}
+
+
+        echo json_encode(['success' => true, 'next' => $next]);
     } catch (Throwable $e) {
-        echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
     exit;
 }

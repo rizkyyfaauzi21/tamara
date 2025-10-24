@@ -2,7 +2,7 @@
 // app/views/scan/index.php
 require __DIR__ . '/../layout/header.php';
 ?>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
 
 <div class="container mt-4">
   <a href="index.php?page=dashboard" class="btn btn-secondary mb-3">← Back</a>
@@ -10,7 +10,7 @@ require __DIR__ . '/../layout/header.php';
 
   <div class="mb-3">
     <video id="video" autoplay muted playsinline
-           style="width:100%;max-width:600px;border:1px solid #ccc"></video>
+      style="width:100%;max-width:600px;border:1px solid #ccc"></video>
     <p id="status" class="mt-2 text-info">Arahkan kamera ke QR code invoice</p>
   </div>
 
@@ -20,9 +20,9 @@ require __DIR__ . '/../layout/header.php';
 <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
 <script>
   const codeReader = new ZXing.BrowserMultiFormatReader();
-  const videoElem  = document.getElementById('video');
+  const videoElem = document.getElementById('video');
   const statusElem = document.getElementById('status');
-  const detailDiv  = document.getElementById('detailContainer');
+  const detailDiv = document.getElementById('detailContainer');
 
   // state to avoid double handling while camera stays ON
   let busy = false;
@@ -58,7 +58,7 @@ require __DIR__ . '/../layout/header.php';
 
     // extract id (supports URL with ?id=14 or plain "14")
     const m = text.match(/[\?&]id=(\d+)/);
-    const invoiceId = m ? m[1] : text.replace(/\D/g,'');
+    const invoiceId = m ? m[1] : text.replace(/\D/g, '');
     if (!invoiceId) {
       statusElem.textContent = 'QR tidak berisi ID invoice yang valid';
       busy = false;
@@ -75,17 +75,16 @@ require __DIR__ . '/../layout/header.php';
         return res.text();
       })
       .then(html => {
+        console.log("HTML invoice detail:", html);
         detailDiv.innerHTML = html;
-        attachDecisionHandlers();
-        // camera keeps running; allow next scan
+        attachDecisionHandlers(); // panggil JS validasi dari invoice_detail.php
         statusElem.textContent = 'Arahkan kamera ke QR code invoice';
         busy = false;
       })
       .catch(err => {
         detailDiv.innerHTML = `<div class="alert alert-warning">
-          Tagihan #${id} tidak terdaftar.<br><small>${err.message}</small>
-        </div>`;
-        // clear after a moment, then allow scanning again
+        Tagihan #${id} tidak terdaftar.<br><small>${err.message}</small>
+      </div>`;
         setTimeout(() => {
           detailDiv.innerHTML = '';
           statusElem.textContent = 'Arahkan kamera ke QR code invoice';
@@ -95,46 +94,73 @@ require __DIR__ . '/../layout/header.php';
       });
   }
 
+
   function attachDecisionHandlers() {
+    console.log("🔗 attachDecisionHandlers() aktif");
+
     detailDiv.querySelectorAll('.btn-decision').forEach(btn => {
       btn.addEventListener('click', () => {
-        const mode = btn.dataset.decision;  // 'approve' or 'reject'
-        const id   = btn.dataset.id;
-        btn.disabled = true;
+        const mode = btn.dataset.decision; // 'approve' or 'reject'
+        const id = btn.dataset.id;
+        const role = btn.dataset.role;
 
-        // while saving decision block duplicate handling
+
+        const no_soj = document.getElementById("no_soj")?.value || "";
+        const no_mmj = document.getElementById("no_mmj")?.value || "";
+
+
+        // ✅ Validasi input sebelum kirim
+        if (role === "ADMIN_PCS" && mode === "approve") {
+          if (!no_mmj || !no_soj) {
+            alert("⚠️ Harap isi Nomor MMJ dan Nomor SOJ sebelum melakukan approve!");
+            return;
+          }
+        }
+
+
+
+        btn.disabled = true;
         busy = true;
 
         fetch('index.php?page=scan&action=decide', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/x-www-form-urlencoded' },
-          body: `invoice_id=${encodeURIComponent(id)}&decision=${encodeURIComponent(mode)}`
-        })
-        .then(r => r.json())
-        .then(js => {
-          if (!js.success) throw new Error('Gagal menyimpan keputusan');
-          if (mode === 'reject') {
-            detailDiv.innerHTML = `<div class="alert alert-warning">
-              Dokumen dikirim kembali untuk revisi.
-            </div>`;
-          } else {
-            detailDiv.innerHTML = `<div class="alert alert-success">
-              Keputusan <strong>APPROVE</strong> tersimpan. Next: <em>${js.next || 'selesai'}</em>
-            </div>`;
-          }
-        })
-        .catch(err => {
-          detailDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
-        })
-        .finally(() => {
-          // after a short pause, clear detail and let camera continue scanning new ones
-          setTimeout(() => {
-            detailDiv.innerHTML = '';
-            statusElem.textContent = 'Arahkan kamera ke QR code invoice';
-            busy = false;
-            lastText = null; // allow same QR again if needed
-          }, 1200);
-        });
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+              invoice_id: id,
+              decision: mode,
+              no_mmj: no_mmj,
+              no_soj: no_soj
+            })
+          })
+          .then(r => r.json())
+          .then(js => {
+            console.log("Respon dari server:", js);
+            if (!js.success) throw new Error(js.message || 'Gagal menyimpan keputusan');
+
+            if (mode === 'reject') {
+              detailDiv.innerHTML = `<div class="alert alert-warning">
+            Dokumen dikirim kembali untuk revisi.
+          </div>`;
+            } else {
+              detailDiv.innerHTML = `<div class="alert alert-success">
+            Keputusan <strong>APPROVE</strong> tersimpan. Next: <em>${js.next || 'selesai'}</em>
+          </div>`;
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            detailDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+          })
+          .finally(() => {
+            setTimeout(() => {
+              detailDiv.innerHTML = '';
+              statusElem.textContent = 'Arahkan kamera ke QR code invoice';
+              busy = false;
+              lastText = null;
+            }, 1200);
+          });
       });
     });
   }

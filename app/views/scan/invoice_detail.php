@@ -1,24 +1,58 @@
 <?php
-// tersedia dari controller: $inv, $lines, $logs, $flow, $role, $userIdView (opsional)
 
-// --- ringkas status dari log ---
+
+// ✅ Bagian 1: Tangani AJAX POST dari tombol Approve / Reject
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+
+    $id_invoice = $_POST['id_invoice'] ?? null;
+    $decision   = $_POST['decision'] ?? null;
+    $no_mmj     = trim($_POST['no_mmj'] ?? '');
+    $no_soj     = trim($_POST['no_soj'] ?? '');
+    $role       = 'ADMIN_PCS'; // nanti bisa diganti $_SESSION['role'] kalau sudah login
+
+    if (!$id_invoice || !$decision) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Data tidak lengkap (ID invoice atau keputusan tidak ada).'
+        ]);
+        exit;
+    }
+
+    // ✅ Validasi khusus ADMIN_PCS saat approve
+    if ($role === 'ADMIN_PCS' && $decision === 'approve') {
+        if (empty($no_mmj) || empty($no_soj)) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Nomor MMJ dan SOJ wajib diisi sebelum melakukan approve.'
+            ]);
+            exit;
+        }
+    }
+
+    // TODO: logika update database, misalnya:
+    // update status invoice, insert log, dst...
+
+    echo json_encode([
+        'success' => true,
+        'next' => 'KEUANGAN',
+        'message' => 'Keputusan berhasil disimpan.'
+    ]);
+    exit;
+}
+
+
+
+
+// tersedia dari controller: $inv, $lines, $logs, $flow, $role, $userIdView (opsional)
 $approved = array_column(array_filter($logs, fn($l)=>$l['decision']==='APPROVED'), 'role');
 $rejected = array_column(array_filter($logs, fn($l)=>$l['decision']==='REJECTED'), 'role');
-
-// log TERAKHIR (paling mutakhir)
 $lastLog = $logs ? end($logs) : null;
 $lastDecision = $lastLog['decision'] ?? null;
-$lastRole     = $lastLog['role']     ?? null;
-
-// current role sudah dihitung di controller & sudah disinkronkan ke DB
-$current = $inv['current_role']; // bisa null jika sudah selesai di KEUANGAN
-
-// isRevision hanya jika entry terakhir REJECT
+$lastRole     = $lastLog['role'] ?? null;
+$current = $inv['current_role'];
 $isRevision = ($lastDecision === 'REJECTED');
 
-// boleh menekan tombol?
-// - hanya jika posisinya sama dengan current
-// - dan (belum pernah memutuskan di siklus ini) → dicek sederhana: cek entry terakhir oleh user ini dan role sama
 $hasDecided = false;
 if ($logs) {
   for ($i = count($logs)-1; $i>=0; $i--) {
@@ -26,7 +60,6 @@ if ($logs) {
       $hasDecided = true;
       break;
     }
-    // berhenti jika ketemu keputusan oleh role lain; cukup untuk membatasi "siklus"
     if ($logs[$i]['role'] !== $role) break;
   }
 }
@@ -56,16 +89,13 @@ $canDecide = ($current === $role) && !$hasDecided;
     <?php endforeach; ?>
   </div>
 
-  <!-- pesan revisi: hanya saat log terakhir REJECT -->
   <?php if ($isRevision): ?>
     <div class="alert alert-warning">
       Dokumen direvisi oleh <strong><?= htmlspecialchars($lastRole) ?></strong>.
-      Alur kembali satu tingkat ke <strong><?= htmlspecialchars($current) ?></strong>.
-      Silakan perbaiki & teruskan kembali.
+      Alur kembali ke <strong><?= htmlspecialchars($current) ?></strong>.
     </div>
   <?php endif; ?>
 
-  <!-- header -->
   <p class="mb-2">
     <strong>Bulan</strong>: <?= htmlspecialchars($inv['bulan']) ?><br>
     <strong>Jenis</strong>: <?= htmlspecialchars($inv['jenis_transaksi']) ?><br>
@@ -74,7 +104,6 @@ $canDecide = ($current === $role) && !$hasDecided;
     <strong>Dibuat</strong>: <?= htmlspecialchars($inv['created_at']) ?>
   </p>
 
-  <!-- tabel lines -->
   <table class="table table-sm table-bordered mb-3">
     <thead class="table-light">
       <tr>
@@ -95,49 +124,86 @@ $canDecide = ($current === $role) && !$hasDecided;
     </tbody>
   </table>
 
-  <!-- tombol -->
+
   <?php if ($canDecide && $current !== null): ?>
-    <div class="text-end mb-3">
-      <?php if ($role === 'ADMIN_GUDANG'): ?>
-        <button class="btn btn-primary btn-decision"
-                data-decision="approve"
-                data-id="<?= (int)$inv['id'] ?>">
-          Serahkan
-        </button>
-      <?php else: ?>
+  <div class="mb-4 mt-3">
+
+    <?php if ($role === 'ADMIN_PCS'): ?>
+      <!-- Hanya ADMIN_PCS yang bisa input -->
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="no_mmj" class="form-label">Nomor MMJ</label>
+          <input type="text" id="no_mmj" class="form-control" 
+                 placeholder="Masukkan nomor MMJ"
+                 value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>">
+        </div>
+        <div class="col-md-6">
+          <label for="no_soj" class="form-label">Nomor SOJ</label>
+          <input type="text" id="no_soj" class="form-control" 
+                 placeholder="Masukkan nomor SOJ"
+                 value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>">
+        </div>
+      </div>
+
+    <?php elseif ($role === 'KEUANGAN'): ?>
+      <!-- KEUANGAN hanya lihat (readonly) -->
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label class="form-label">Nomor MMJ</label>
+          <input type="text" class="form-control" 
+                 value="<?= htmlspecialchars($inv['no_mmj'] ?? '-') ?>" disabled>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Nomor SOJ</label>
+          <input type="text" class="form-control" 
+                 value="<?= htmlspecialchars($inv['no_soj'] ?? '-') ?>" disabled>
+        </div>
+      </div>
+    <?php endif; ?>
+
+    
+      <div class="text-end">
         <button class="btn btn-success btn-decision"
                 data-decision="approve"
-                data-id="<?= (int)$inv['id'] ?>">
+                data-id="<?= (int)$inv['id'] ?>"
+                data-role="<?= htmlspecialchars($role) ?>">
           Approve
         </button>
         <button class="btn btn-danger btn-decision"
                 data-decision="reject"
-                data-id="<?= (int)$inv['id'] ?>">
+                data-id="<?= (int)$inv['id'] ?>"
+                data-role="<?= htmlspecialchars($role) ?>">
           Reject
         </button>
-      <?php endif; ?>
-    </div>
-  <?php elseif ($hasDecided): ?>
-    <p class="text-warning">Anda sudah memberikan keputusan untuk siklus ini.</p>
-  <?php elseif ($current !== null): ?>
-    <p class="text-muted">Menunggu keputusan <strong><?= htmlspecialchars($current) ?></strong>.</p>
-  <?php else: ?>
-    <div class="alert alert-success mb-0">Proses selesai.</div>
-  <?php endif; ?>
+      </div>
+    
 
-  <!-- riwayat -->
-  <?php if ($logs): ?>
-    <h6>Riwayat</h6>
-    <ul class="list-group">
-      <?php foreach ($logs as $log): ?>
-        <li class="list-group-item d-flex justify-content-between">
-          <span>
-            <strong><?= htmlspecialchars($log['role']) ?></strong>
-            &mdash; <?= ucfirst(strtolower($log['decision'])) ?>
-          </span>
-          <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
-        </li>
-      <?php endforeach; ?>
-    </ul>
-  <?php endif; ?>
+  </div>
+
+<?php elseif ($hasDecided): ?>
+  <p class="text-warning">Anda sudah memberikan keputusan untuk siklus ini.</p>
+
+<?php elseif ($current !== null): ?>
+  <p class="text-muted">Menunggu keputusan <strong><?= htmlspecialchars($current) ?></strong>.</p>
+
+<?php else: ?>
+  <div class="alert alert-success mb-0">Proses selesai.</div>
+<?php endif; ?>
+
+
+<!-- Riwayat -->
+<?php if ($logs): ?>
+  <h6>Riwayat</h6>
+  <ul class="list-group">
+    <?php foreach ($logs as $log): ?>
+      <li class="list-group-item d-flex justify-content-between">
+        <span>
+          <strong><?= htmlspecialchars($log['role']) ?></strong>
+          &mdash; <?= ucfirst(strtolower($log['decision'])) ?>
+        </span>
+        <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
+      </li>
+    <?php endforeach; ?>
+  </ul>
+<?php endif; ?>
 </div>
