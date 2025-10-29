@@ -3,7 +3,7 @@
         'name' => 'root/tamara',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '52ea239e54838d9c45b1b416e2c4b851c549f15c',
+        'reference' => '3323be49467ec8ad7ab795a5464b37ed56c28f5e',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -148,7 +148,7 @@
         'root/tamara' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '52ea239e54838d9c45b1b416e2c4b851c549f15c',
+            'reference' => '3323be49467ec8ad7ab795a5464b37ed56c28f5e',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
