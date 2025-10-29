@@ -1,4 +1,4 @@
-# TAMARA - Install (Windows & Linux)
+# TAMARA - Install (Windows)
 
 Aplikasi **PHP Native** dengan **Composer**. Panduan ini hanya untuk **instalasi & menjalankan**.
 
@@ -11,8 +11,6 @@ Aplikasi **PHP Native** dengan **Composer**. Panduan ini hanya untuk **instalasi
 
 > **Penting:** Letakkan project di **htdocs** saat memakai XAMPP/LAMPP.  
 > - Windows (XAMPP): `C:\xampp\htdocs\tamara`  
-> - Linux (LAMPP): `/opt/lampp/htdocs/tamara`  
-> - Linux (Apache native): `/var/www/tamara` (DocumentRoot → `public/`)
 
 ---
 
@@ -21,14 +19,23 @@ Aplikasi **PHP Native** dengan **Composer**. Panduan ini hanya untuk **instalasi
 ### 1) Clone ke `htdocs`
 ```bat
 cd C:\xampp\htdocs
-git clone https://github.com/<org-atau-username>/tamara.git
+git clone https://github.com/muharienal/tamara.git
 cd tamara
 ```
 
 ### 2) Composer
 ```bat
-composer install
-composer dump-autoload -o
+cd /c/xampp/htdocs/tamara
+
+# Bersihkan vendor & lock agar resolver Composer tidak memaksa v3.x
+rm -rf vendor composer.lock
+
+# Kunci versi kompatibel untuk Spreadsheet + ZipStream
+composer require phpoffice/phpspreadsheet:^1.29 maennchen/zipstream-php:^2.2 --with-all-dependencies --no-scripts
+
+# Install vendor sesuai lock baru
+composer install -o
+
 ```
 
 ### 3) Database (phpMyAdmin)
@@ -49,26 +56,6 @@ return [
 ```
 Start **Apache** & **MySQL** di XAMPP.  
 Akses: `http://localhost/tamara/public/`
-
----
-
-## Linux (LAMPP/XAMPP for Linux)
-```bash
-# Start LAMPP
-sudo /opt/lampp/lampp start
-
-# Clone ke htdocs LAMPP
-cd /opt/lampp/htdocs
-sudo git clone https://github.com/<org-atau-username>/tamara.git
-cd tamara
-
-# Composer
-sudo /opt/lampp/bin/php /usr/local/bin/composer install || composer install
-sudo composer dump-autoload -o
-```
-- Buat DB `tamara` via `http://localhost/phpmyadmin` → **Import** file **.sql**.  
-- Edit `config/database.php`.  
-- Akses: `http://localhost/tamara/public/`
 
 ---
 
