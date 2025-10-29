@@ -75,7 +75,7 @@ require __DIR__ . '/../layout/header.php';
         return res.text();
       })
       .then(html => {
-        console.log("HTML invoice detail:", html);
+        console.log("HTML invoice detail loaded");
         detailDiv.innerHTML = html;
         attachDecisionHandlers(); // panggil JS validasi dari invoice_detail.php
         statusElem.textContent = 'Arahkan kamera ke QR code invoice';
@@ -104,10 +104,24 @@ require __DIR__ . '/../layout/header.php';
         const id = btn.dataset.id;
         const role = btn.dataset.role;
 
+        console.log('=== DECISION CLICKED ===');
+        console.log('Mode:', mode);
+        console.log('Invoice ID:', id);
+        console.log('Role:', role);
 
-        const no_soj = document.getElementById("no_soj")?.value || "";
-        const no_mmj = document.getElementById("no_mmj")?.value || "";
+        // Ambil nomor SOJ dan MMJ (khusus ADMIN_PCS)
+        const no_soj_input = document.getElementById("no_soj");
+        const no_mmj_input = document.getElementById("no_mmj");
+        const no_soj = no_soj_input && !no_soj_input.disabled ? no_soj_input.value.trim() : "";
+        const no_mmj = no_mmj_input && !no_mmj_input.disabled ? no_mmj_input.value.trim() : "";
 
+        // ✅ Ambil catatan sesuai role
+        const note_field = document.getElementById("note_role");
+        const note_value = note_field ? note_field.value.trim() : "";
+        
+        console.log('No SOJ:', no_soj);
+        console.log('No MMJ:', no_mmj);
+        console.log('Note:', note_value);
 
         // ✅ Validasi input sebelum kirim
         if (role === "ADMIN_PCS" && mode === "approve") {
@@ -117,41 +131,73 @@ require __DIR__ . '/../layout/header.php';
           }
         }
 
-
+        // Konfirmasi
+        const confirmMsg = mode === 'approve' 
+          ? 'Apakah Anda yakin ingin APPROVE invoice ini?' 
+          : 'Apakah Anda yakin ingin REJECT invoice ini?';
+        
+        if (!confirm(confirmMsg)) {
+          return;
+        }
 
         btn.disabled = true;
         busy = true;
+
+        // ✅ Siapkan data untuk dikirim
+        const formData = {
+          invoice_id: id,
+          decision: mode,
+          no_mmj: no_mmj,
+          no_soj: no_soj
+        };
+
+        // ✅ Tambahkan catatan sesuai role
+        if (role === 'ADMIN_WILAYAH') {
+          formData.note_admin_wilayah = note_value;
+        } else if (role === 'PERWAKILAN_PI') {
+          formData.note_perwakilan_pi = note_value;
+        } else if (role === 'ADMIN_PCS') {
+          formData.note_admin_pcs = note_value;
+        } else if (role === 'KEUANGAN') {
+          formData.note_keuangan = note_value;
+        }
+
+        console.log('Data yang akan dikirim:', formData);
 
         fetch('index.php?page=scan&action=decide', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: new URLSearchParams({
-              invoice_id: id,
-              decision: mode,
-              no_mmj: no_mmj,
-              no_soj: no_soj
-            })
+            body: new URLSearchParams(formData)
           })
-          .then(r => r.json())
+          .then(r => {
+            console.log('Response status:', r.status);
+            return r.json();
+          })
           .then(js => {
             console.log("Respon dari server:", js);
             if (!js.success) throw new Error(js.message || 'Gagal menyimpan keputusan');
 
             if (mode === 'reject') {
               detailDiv.innerHTML = `<div class="alert alert-warning">
-            Dokumen dikirim kembali untuk revisi.
+            <strong>✓ Dokumen dikirim kembali untuk revisi.</strong>
+            ${note_value ? '<br><small>Catatan: ' + note_value + '</small>' : ''}
           </div>`;
             } else {
               detailDiv.innerHTML = `<div class="alert alert-success">
-            Keputusan <strong>APPROVE</strong> tersimpan. Next: <em>${js.next || 'selesai'}</em>
+            <strong>✓ Keputusan APPROVE tersimpan.</strong><br>
+            Next: <em>${js.next || 'SELESAI'}</em>
+            ${note_value ? '<br><small>Catatan: ' + note_value + '</small>' : ''}
           </div>`;
             }
           })
           .catch(err => {
-            console.error(err);
-            detailDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+            console.error('Error:', err);
+            detailDiv.innerHTML = `<div class="alert alert-danger">
+              <strong>✗ Error:</strong> ${err.message}
+            </div>`;
+            btn.disabled = false;
           })
           .finally(() => {
             setTimeout(() => {
@@ -159,7 +205,7 @@ require __DIR__ . '/../layout/header.php';
               statusElem.textContent = 'Arahkan kamera ke QR code invoice';
               busy = false;
               lastText = null;
-            }, 1200);
+            }, 2500);
           });
       });
     });
@@ -167,3 +213,4 @@ require __DIR__ . '/../layout/header.php';
 </script>
 <?php
 require __DIR__ . '/../layout/footer.php';
+?>
