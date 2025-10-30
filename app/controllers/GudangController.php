@@ -11,23 +11,58 @@ require_once __DIR__ . '/../views/layout/header.php';
 $action = $_GET['action'] ?? null;
 
 // ==========================
-// 1. KELOLA NAMA GUDANG
+// 1. KELOLA NAMA WILAYAH
+// ==========================
+if ($action === 'wilayah' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $wilayah = $_POST['wilayah'];
+
+    if (!empty($_POST['id'])) {
+        // Update wilayah 
+        $stmt = $conn->prepare("UPDATE wilayah SET wilayah = :wilayah WHERE id = :id");
+        $stmt->execute([
+            'wilayah' => $wilayah,
+            'id' => $_POST['id']
+        ]);
+        $_SESSION['success'] = "Wilayah berhasil diperbarui.";
+    } else {
+        // Tambah wilayah baru
+        $stmt = $conn->prepare("INSERT INTO wilayah (wilayah) VALUES (:wilayah)");
+        $stmt->execute(['wilayah' => $wilayah]);
+        $_SESSION['success'] = "Wilayah baru berhasil ditambahkan.";
+    }
+
+    header("Location: index.php?page=gudang");
+    exit;
+}
+
+if ($action === 'wilayah' && isset($_GET['delete'])) {
+    $id = $_GET['delete'];
+    $stmt = $conn->prepare("DELETE FROM wilayah WHERE id = :id");
+    $stmt->execute(['id' => $id]);
+    $_SESSION['success'] = "Wilayah berhasil dihapus.";
+    header("Location: index.php?page=gudang");
+    exit;
+}
+
+// ==========================
+// 2. KELOLA NAMA GUDANG
 // ==========================
 if ($action === 'nama' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $nama = $_POST['nama_gudang'];
 
     if (!empty($_POST['id'])) {
         // Update nama gudang
-        $stmt = $conn->prepare("UPDATE gudang SET nama_gudang = :nama WHERE id = :id");
+        $stmt = $conn->prepare("UPDATE gudang SET nama_gudang = :nama, id_wilayah = :id_wilayah WHERE id = :id");
         $stmt->execute([
             'nama' => $nama,
+            'id_wilayah' => $_POST['id_wilayah'],
             'id' => $_POST['id']
         ]);
-        $_SESSION['success'] = "Nama gudang berhasil diperbarui.";
+        $_SESSION['success'] = "Data gudang berhasil diperbarui.";
     } else {
         // Tambah nama gudang
-        $stmt = $conn->prepare("INSERT INTO gudang (nama_gudang) VALUES (:nama)");
-        $stmt->execute(['nama' => $nama]);
+        $stmt = $conn->prepare("INSERT INTO gudang (nama_gudang, id_wilayah) VALUES (:nama, :id_wilayah)");
+        $stmt->execute(['nama' => $nama, 'id_wilayah' => $_POST['id_wilayah']]);
         $_SESSION['success'] = "Nama gudang baru berhasil ditambahkan.";
     }
 
@@ -45,7 +80,7 @@ if ($action === 'nama' && isset($_GET['delete'])) {
 }
 
 // ==========================
-// 2. KELOLA TARIF GUDANG
+// 3. KELOLA TARIF GUDANG
 // ==========================
 if ($action === 'tarif' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $gudang_id = $_POST['gudang_id'];
@@ -99,7 +134,13 @@ if ($action === 'tarif' && isset($_GET['delete'])) {
 // ==========================
 // AMBIL DATA UNTUK VIEW
 // ==========================
-$gudangList = $conn->query("SELECT * FROM gudang ORDER BY nama_gudang ASC")->fetchAll(PDO::FETCH_ASSOC);
+$wilayahList = $conn->query("SELECT * FROM wilayah ORDER BY wilayah ASC")->fetchAll(PDO::FETCH_ASSOC);
+$gudangList = $conn->query("
+    SELECT g.id, g.nama_gudang, g.id_wilayah, w.wilayah 
+    FROM gudang g 
+    JOIN wilayah w ON g.id_wilayah = w.id
+    ORDER BY g.id DESC
+")->fetchAll(PDO::FETCH_ASSOC);
 $tarifList = $conn->query("
     SELECT gt.*, g.nama_gudang 
     FROM gudang_tarif gt
