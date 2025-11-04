@@ -21,6 +21,19 @@
         <div class="col-md-4">
             <input type="text" name="wilayah" id="edit-wilayah" class="form-control" placeholder="Masukkan Wilayah" required>
         </div>
+        <div class="col-md-3">
+
+            <select name="id_user" id="edit-admin-wilayah" class="form-control">
+                <option value="">-- Pilih Admin Wilayah --</option>
+                <?php foreach ($admin_wilayahList as $w): ?>
+                    <option value="<?= $w['id'] ?>"><?= htmlspecialchars($w['nama']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <div class="form-text" style="font-size: 12px;">
+
+                *Kosongkan jika admin wilayah belum dibuat
+            </div>
+        </div>
 
         <!-- Tombol Simpan -->
         <div class="col-md-2">
@@ -29,31 +42,46 @@
     </form>
 
     <!-- Tabel Wilayah -->
+    <!-- Tabel admin_ wilayah -->
     <table class="table table-bordered mb-5">
         <thead>
             <tr>
                 <th>#</th>
                 <th>Wilayah</th>
+                <th>Nama Admin Wilayah</th>
+                <th>Role</th>
                 <th>Aksi</th>
             </tr>
         </thead>
         <tbody>
-            <?php if (!empty($wilayahList) && is_array($wilayahList)): ?>
-                <?php foreach ($wilayahList as $i => $g): ?>
+            <?php if (!empty($user_admin_wilayah) && is_array($user_admin_wilayah)): ?>
+                <?php foreach ($user_admin_wilayah as $i => $g): ?>
                     <tr>
                         <td><?= $i + 1 ?></td>
-                        <td><?= htmlspecialchars($g['wilayah']) ?></td>
+                        <td><?= htmlspecialchars($g['wilayah'] ?? '-') ?></td>
+                        <td><?= htmlspecialchars($g['nama'] ?? '-') ?></td>
+                        <td><?= htmlspecialchars($g['role'] ?? '-') ?></td>
+
+
                         <td>
                             <button type="button" class="btn btn-sm btn-warning"
-                                onclick="editWilayah(<?= $g['id'] ?>,'<?= htmlspecialchars($g['wilayah']) ?>')">Edit</button>
-                            <a href="index.php?page=gudang&action=wilayah&delete=<?= $g['id'] ?>"
-                                class="btn btn-sm btn-danger" onclick="return confirm('Hapus wilayah ini?')">Hapus</a>
+                                onclick='editAdminWilayah(
+                        <?= json_encode($g["id_wilayah"]) ?>, 
+                        <?= json_encode($g["wilayah"]) ?>, 
+                        <?= json_encode($g["id_user"]) ?>
+                    )'>
+                                Edit
+                            </button>
+
+                            <a href="index.php?page=users&action=admin_wilayah&delete=<?= $g['id_relasi'] ?>"
+                                class="btn btn-sm btn-danger"
+                                onclick="return confirm('Hapus user ini dari wilayah tersebut?')">Hapus</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
             <?php else: ?>
                 <tr>
-                    <td colspan="3" class="text-center">Belum ada data wilayah</td>
+                    <td colspan="5" class="text-center">Belum ada data admin wilayah.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -220,6 +248,12 @@
         document.getElementById('edit-nama-id').value = id;
         document.getElementById('edit-nama-gudang').value = nama;
         document.getElementById('edit-wilayah_gudang').value = idWilayah;
+    }
+
+    function editAdminWilayah(id, wilayah, adminWilayah) {
+        document.getElementById('edit-wilayah-id').value = id; // id wilayah
+        document.getElementById('edit-wilayah').value = wilayah; // nama wilayah
+        document.getElementById('edit-admin-wilayah').value = adminWilayah; // id user (admin)
     }
 
 
