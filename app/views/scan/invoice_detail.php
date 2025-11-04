@@ -1,5 +1,73 @@
 <?php
 // app/views/scan/invoice_detail.php
+?>
+<!-- ================= CSS kecil untuk uploader ================= -->
+<style>
+.uploader {
+    border: 2px dashed #cfe3ff;
+    border-radius: 12px;
+    background: #f7fbff;
+    cursor: pointer;
+}
+
+.uploader:hover {
+    background: #f1f8ff;
+}
+
+.uploader .cloud {
+    font-size: 40px;
+    line-height: 1;
+}
+
+.uploader .cta {
+    color: #1976d2;
+    font-weight: 600;
+}
+
+.file-pill {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .45rem .6rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.file-badge {
+    font-weight: 700;
+    font-size: .75rem;
+    padding: .15rem .45rem;
+    border-radius: 6px;
+    background: #e8f1ff;
+    color: #0b5ed7;
+    text-transform: uppercase;
+}
+
+.file-remove {
+    border: none;
+    background: #f8d7da;
+    color: #a61b2b;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.file-remove:hover {
+    filter: brightness(.95);
+}
+
+.file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+</style>
+<?php
 
 // ✅ Bagian 1: Tangani AJAX POST dari tombol Approve / Reject
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -90,25 +158,25 @@ $canDecide = ($current === $role) && !$hasDecided;
     <!-- indikator flow -->
     <div class="mb-3">
         <?php foreach ($flow as $r): ?>
-            <?php if ($isRevision): ?>
-                <span class="badge bg-warning"><?= htmlspecialchars($r) ?></span>
-            <?php else: ?>
-                <?php if (in_array($r, $approved, true)): ?>
-                    <span class="badge bg-success"><?= htmlspecialchars($r) ?></span>
-                <?php elseif ($r === $current): ?>
-                    <span class="badge bg-primary"><?= htmlspecialchars($r) ?></span>
-                <?php else: ?>
-                    <span class="badge bg-secondary"><?= htmlspecialchars($r) ?></span>
-                <?php endif; ?>
-            <?php endif; ?>
+        <?php if ($isRevision): ?>
+        <span class="badge bg-warning"><?= htmlspecialchars($r) ?></span>
+        <?php else: ?>
+        <?php if (in_array($r, $approved, true)): ?>
+        <span class="badge bg-success"><?= htmlspecialchars($r) ?></span>
+        <?php elseif ($r === $current): ?>
+        <span class="badge bg-primary"><?= htmlspecialchars($r) ?></span>
+        <?php else: ?>
+        <span class="badge bg-secondary"><?= htmlspecialchars($r) ?></span>
+        <?php endif; ?>
+        <?php endif; ?>
         <?php endforeach; ?>
     </div>
 
     <?php if ($isRevision): ?>
-        <div class="alert alert-warning">
-            Dokumen direvisi oleh <strong><?= htmlspecialchars($lastRole) ?></strong>.
-            Alur kembali ke <strong><?= htmlspecialchars($current) ?></strong>.
-        </div>
+    <div class="alert alert-warning">
+        Dokumen direvisi oleh <strong><?= htmlspecialchars($lastRole) ?></strong>.
+        Alur kembali ke <strong><?= htmlspecialchars($current) ?></strong>.
+    </div>
     <?php endif; ?>
 
     <p class="mb-2">
@@ -131,13 +199,13 @@ $canDecide = ($current === $role) && !$hasDecided;
         </thead>
         <tbody>
             <?php foreach ($lines as $i => $ln): ?>
-                <tr>
-                    <td><?= $i + 1 ?></td>
-                    <td><?= htmlspecialchars($ln['nomor_sto']) ?></td>
-                    <td><?= htmlspecialchars($ln['tanggal_terbit']) ?></td>
-                    <td class="text-end"><?= number_format($ln['tonase_normal']) ?></td>
-                    <td class="text-end"><?= number_format($ln['tonase_lembur']) ?></td>
-                </tr>
+            <tr>
+                <td><?= $i + 1 ?></td>
+                <td><?= htmlspecialchars($ln['nomor_sto']) ?></td>
+                <td><?= htmlspecialchars($ln['tanggal_terbit']) ?></td>
+                <td class="text-end"><?= number_format($ln['tonase_normal']) ?></td>
+                <td class="text-end"><?= number_format($ln['tonase_lembur']) ?></td>
+            </tr>
             <?php endforeach; ?>
         </tbody>
     </table>
@@ -145,7 +213,7 @@ $canDecide = ($current === $role) && !$hasDecided;
     <!-- ✅ SECTION CATATAN DARI SETIAP ROLE -->
     <div class="mb-4">
         <h6 class="mb-3">Catatan dari Setiap Role</h6>
-        
+
         <div class="row">
             <!-- Catatan Admin Wilayah -->
             <div class="col-md-6 mb-3">
@@ -214,114 +282,136 @@ $canDecide = ($current === $role) && !$hasDecided;
     </div>
 
     <?php if (($canDecide && $current !== null) || $role === 'ADMIN_PCS' || $role === 'KEUANGAN'): ?>
-        <div class="mb-4 mt-3">
-            <?php if ($role === 'ADMIN_PCS'): ?>
-                <!-- Hanya ADMIN_PCS yang bisa input nomor -->
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor MMJ</label>
-                        <input type="text" id="no_mmj" class="form-control"
-                            value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>"
-                            <?= !empty($inv['no_mmj']) ? 'disabled' : '' ?>>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor SOJ</label>
-                        <input type="text" id="no_soj" class="form-control"
-                            value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>"
-                            <?= !empty($inv['no_soj']) ? 'disabled' : '' ?>>
-                    </div>
-                </div>
+    <div class="mb-4 mt-3">
+        <?php if ($role === 'ADMIN_PCS'): ?>
+        <!-- Hanya ADMIN_PCS yang bisa input nomor -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Nomor MMJ</label>
+                <input type="text" id="no_mmj" class="form-control"
+                    value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>"
+                    <?= !empty($inv['no_mmj']) ? 'disabled' : '' ?>>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Nomor SOJ</label>
+                <input type="text" id="no_soj" class="form-control"
+                    value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>"
+                    <?= !empty($inv['no_soj']) ? 'disabled' : '' ?>>
+            </div>
+        </div>
+
+        <!-- =========== Upload Multi File (baru) =========== -->
+        <div class="col-12">
+            <label class="form-label">Lampiran (boleh banyak)</label>
+
+            <div id="dz-create" class="uploader p-4 text-center mb-2">
+                <div class="cloud mb-2">☁⬆</div>
+                <div class="cta">Click To Upload</div>
+                <small class="text-muted d-block mt-1">
+                    atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
+                </small>
+            </div>
+
+            <input id="files-create" type="file" name="files[]" class="d-none" multiple
+                accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx">
+
+            <ul id="list-create" class="file-list"></ul>
+        </div>
+
+        <div class="col-12 text-end">
+            <button type="submit" class="btn btn-primary">Daftar STO</button>
+        </div>
+
+        <?php elseif ($role === 'KEUANGAN'): ?>
+        <!-- KEUANGAN hanya lihat (readonly) -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Nomor MMJ</label>
+                <input type="text" class="form-control" value="<?= htmlspecialchars($inv['no_mmj'] ?? '-') ?>" disabled>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Nomor SOJ</label>
+                <input type="text" class="form-control" value="<?= htmlspecialchars($inv['no_soj'] ?? '-') ?>" disabled>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- ✅ INPUT CATATAN SESUAI ROLE -->
+        <?php if ($canDecide): ?>
+        <div class="mb-3">
+            <?php if ($role === 'ADMIN_WILAYAH'): ?>
+            <label class="form-label fw-bold">Catatan Admin Wilayah</label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="Masukkan catatan Anda sebagai Admin Wilayah..."><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
+
+            <?php elseif ($role === 'PERWAKILAN_PI'): ?>
+            <label class="form-label fw-bold">Catatan Perwakilan PI</label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="Masukkan catatan Anda sebagai Perwakilan PI..."><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
+
+            <?php elseif ($role === 'ADMIN_PCS'): ?>
+            <label class="form-label fw-bold">Catatan Admin PCS</label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="Masukkan catatan Anda sebagai Admin PCS..."><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
 
             <?php elseif ($role === 'KEUANGAN'): ?>
-                <!-- KEUANGAN hanya lihat (readonly) -->
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor MMJ</label>
-                        <input type="text" class="form-control" value="<?= htmlspecialchars($inv['no_mmj'] ?? '-') ?>" disabled>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor SOJ</label>
-                        <input type="text" class="form-control" value="<?= htmlspecialchars($inv['no_soj'] ?? '-') ?>" disabled>
-                    </div>
-                </div>
-            <?php endif; ?>
-
-            <!-- ✅ INPUT CATATAN SESUAI ROLE -->
-            <?php if ($canDecide): ?>
-                <div class="mb-3">
-                    <?php if ($role === 'ADMIN_WILAYAH'): ?>
-                        <label class="form-label fw-bold">Catatan Admin Wilayah</label>
-                        <textarea id="note_role" class="form-control" rows="3" 
-                            placeholder="Masukkan catatan Anda sebagai Admin Wilayah..."><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
-                    
-                    <?php elseif ($role === 'PERWAKILAN_PI'): ?>
-                        <label class="form-label fw-bold">Catatan Perwakilan PI</label>
-                        <textarea id="note_role" class="form-control" rows="3" 
-                            placeholder="Masukkan catatan Anda sebagai Perwakilan PI..."><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
-                    
-                    <?php elseif ($role === 'ADMIN_PCS'): ?>
-                        <label class="form-label fw-bold">Catatan Admin PCS</label>
-                        <textarea id="note_role" class="form-control" rows="3" 
-                            placeholder="Masukkan catatan Anda sebagai Admin PCS..."><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
-                    
-                    <?php elseif ($role === 'KEUANGAN'): ?>
-                        <label class="form-label fw-bold">Catatan Keuangan</label>
-                        <textarea id="note_role" class="form-control" rows="3" 
-                            placeholder="Masukkan catatan Anda sebagai Keuangan..."><?= htmlspecialchars($inv['note_keuangan'] ?? '') ?></textarea>
-                    <?php endif; ?>
-                </div>
-
-                <div class="text-end">
-                    <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
-                        data-role="<?= htmlspecialchars($role) ?>">
-                        <i class="bi bi-check-circle"></i> Approve
-                    </button>
-                    <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
-                        data-role="<?= htmlspecialchars($role) ?>">
-                        <i class="bi bi-x-circle"></i> Reject
-                    </button>
-                </div>
+            <label class="form-label fw-bold">Catatan Keuangan</label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="Masukkan catatan Anda sebagai Keuangan..."><?= htmlspecialchars($inv['note_keuangan'] ?? '') ?></textarea>
             <?php endif; ?>
         </div>
+
+        <div class="text-end">
+            <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
+                data-role="<?= htmlspecialchars($role) ?>">
+                <i class="bi bi-check-circle"></i> Approve
+            </button>
+            <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
+                data-role="<?= htmlspecialchars($role) ?>">
+                <i class="bi bi-x-circle"></i> Reject
+            </button>
+        </div>
+        <?php endif; ?>
+    </div>
     <?php endif; ?>
 
     <!-- Riwayat -->
     <?php if ($logs): ?>
-        <h6 class="mt-4">Riwayat Keputusan</h6>
-        <ul class="list-group">
-            <?php foreach ($logs as $log): ?>
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>
-                        <strong><?= htmlspecialchars($log['role']) ?></strong>
-                        &mdash; 
-                        <?php if ($log['decision'] === 'APPROVED'): ?>
-                            <span class="badge bg-success">Approved</span>
-                        <?php else: ?>
-                            <span class="badge bg-danger">Rejected</span>
-                        <?php endif; ?>
-                    </span>
-                    <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
-                </li>
-            <?php endforeach; ?>
-        </ul>
+    <h6 class="mt-4">Riwayat Keputusan</h6>
+    <ul class="list-group">
+        <?php foreach ($logs as $log): ?>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>
+                <strong><?= htmlspecialchars($log['role']) ?></strong>
+                &mdash;
+                <?php if ($log['decision'] === 'APPROVED'): ?>
+                <span class="badge bg-success">Approved</span>
+                <?php else: ?>
+                <span class="badge bg-danger">Rejected</span>
+                <?php endif; ?>
+            </span>
+            <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
+        </li>
+        <?php endforeach; ?>
+    </ul>
     <?php endif; ?>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const buttons = document.querySelectorAll('.btn-decision');
-    
+
     buttons.forEach(btn => {
         btn.addEventListener('click', function() {
             const decision = this.getAttribute('data-decision');
             const id = this.getAttribute('data-id');
             const role = this.getAttribute('data-role');
-            
+
             // Ambil nilai input sesuai role
             let formData = new FormData();
             formData.append('invoice_id', id);
             formData.append('decision', decision);
-            
+
             // Ambil nomor MMJ & SOJ jika role ADMIN_PCS
             if (role === 'ADMIN_PCS') {
                 const no_mmj = document.getElementById('no_mmj')?.value || '';
@@ -329,7 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('no_mmj', no_mmj);
                 formData.append('no_soj', no_soj);
             }
-            
+
             // Ambil catatan sesuai role
             const noteField = document.getElementById('note_role');
             if (noteField) {
@@ -344,25 +434,105 @@ document.addEventListener('DOMContentLoaded', function() {
                     formData.append('note_keuangan', noteValue);
                 }
             }
-            
+
             // Kirim ke server
             fetch('index.php?page=scan&action=decide', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Keputusan berhasil disimpan!');
-                    location.reload();
-                } else {
-                    alert('Error: ' + (data.message || 'Terjadi kesalahan'));
-                }
-            })
-            .catch(err => {
-                alert('Network error: ' + err.message);
-            });
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Keputusan berhasil disimpan!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.message || 'Terjadi kesalahan'));
+                    }
+                })
+                .catch(err => {
+                    alert('Network error: ' + err.message);
+                });
         });
+    });
+
+    // ========= Widget multi uploader (drop zone + list) =========
+    function initMultiUploader(zoneId, inputId, listId, options = {}) {
+        const zone = document.getElementById(zoneId);
+        const input = document.getElementById(inputId);
+        const list = document.getElementById(listId);
+        const MAX_BYTES = (options.maxMB || 10) * 1024 * 1024;
+        const ALLOWED = (options.allowed || ['pdf', 'png', 'jpg', 'jpeg', 'xls', 'xlsx']).map(x => x
+            .toLowerCase());
+
+        const dt = new DataTransfer(); // buffer file
+
+        const extOf = (name) => (name.split('.').pop() || '').toLowerCase();
+        const labelOf = (name) => {
+            const ext = extOf(name);
+            if (ext === 'pdf') return 'Pdf';
+            if (ext === 'doc' || ext === 'docx') return 'Docx';
+            if (ext === 'xls' || ext === 'xlsx') return 'Xls';
+            if (ext === 'jpg' || ext === 'jpeg') return 'Jpg';
+            if (ext === 'png') return 'Png';
+            return ext || 'File';
+        };
+
+        function renderList() {
+            list.innerHTML = '';
+            Array.from(dt.files).forEach((f, idx) => {
+                const li = document.createElement('li');
+                li.className = 'file-pill';
+                li.innerHTML = `
+          <span class="file-badge">${labelOf(f.name)}</span>
+          <span class="flex-grow-1 text-truncate">${f.name}</span>
+          <button type="button" class="file-remove" title="Hapus">&times;</button>
+        `;
+                li.querySelector('.file-remove').addEventListener('click', () => {
+                    const newDt = new DataTransfer();
+                    Array.from(dt.files).forEach((ff, i) => {
+                        if (i !== idx) newDt.items.add(ff);
+                    });
+                    input.files = newDt.files;
+                    dt.items.clear();
+                    Array.from(newDt.files).forEach(ff => dt.items.add(ff));
+                    renderList();
+                });
+                list.appendChild(li);
+            });
+        }
+
+        function acceptFiles(files) {
+            Array.from(files).forEach(f => {
+                const ext = extOf(f.name);
+                if (!ALLOWED.includes(ext)) {
+                    console.warn('Tipe tidak diizinkan:', f.name);
+                    return;
+                }
+                if (f.size > MAX_BYTES) {
+                    console.warn('Kebesaran:', f.name);
+                    return;
+                }
+                dt.items.add(f);
+            });
+            input.files = dt.files;
+            renderList();
+        }
+
+        zone.addEventListener('click', () => input.click());
+        input.addEventListener('change', (e) => acceptFiles(e.target.files));
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev =>
+            zone.addEventListener(ev, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            })
+        );
+        zone.addEventListener('drop', e => acceptFiles(e.dataTransfer.files));
+    }
+
+    // inisialisasi widget upload
+    initMultiUploader('dz-create', 'files-create', 'list-create', {
+        maxMB: 10
     });
 });
 </script>
