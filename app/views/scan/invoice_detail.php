@@ -66,6 +66,15 @@
     flex-direction: column;
     gap: .5rem;
 }
+
+/* Label overlay yang menutupi seluruh area dropzone */
+.upload-label-overlay {
+    position: absolute;
+    inset: 0;
+    /* top:0; right:0; bottom:0; left:0 */
+    cursor: pointer;
+    /* tidak perlu opacity: 0; karena label tidak punya tampilan visual */
+}
 </style>
 <?php
 
@@ -73,7 +82,7 @@
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
 
-    $id_invoice = $_POST['id_invoice'] ?? null;
+    $invoice_id = $_POST['invoice_id'] ?? null;
     $decision   = $_POST['decision'] ?? null;
     $no_mmj     = trim($_POST['no_mmj'] ?? '');
     $no_soj     = trim($_POST['no_soj'] ?? '');
@@ -83,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $note_keuangan = trim($_POST['note_keuangan'] ?? '');
     $role       = 'ADMIN_PCS'; // nanti bisa diganti $_SESSION['role'] kalau sudah login
 
-    if (!$id_invoice || !$decision) {
+    if (!$invoice_id || !$decision) {
         echo json_encode([
             'success' => false,
             'message' => 'Data tidak lengkap (ID invoice atau keputusan tidak ada).'
@@ -304,22 +313,23 @@ $canDecide = ($current === $role) && !$hasDecided;
         <div class="col-12">
             <label class="form-label">Lampiran (boleh banyak)</label>
 
-            <div id="dz-create" class="uploader p-4 text-center mb-2">
+            <div id="dz-create" class="uploader p-4 text-center mb-2" role="button" tabindex="0"
+                aria-label="Unggah lampiran">
                 <div class="cloud mb-2">☁⬆</div>
                 <div class="cta">Click To Upload</div>
                 <small class="text-muted d-block mt-1">
                     atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
                 </small>
+
+                <!-- Label overlay: klik ke mana pun di dropzone akan memicu input di bawah -->
+                <label for="files-create" class="upload-label-overlay" aria-hidden="true"></label>
             </div>
 
+            <!-- Tetap d-none sesuai permintaan -->
             <input id="files-create" type="file" name="files[]" class="d-none" multiple
                 accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx">
 
             <ul id="list-create" class="file-list"></ul>
-        </div>
-
-        <div class="col-12 text-end">
-            <button type="submit" class="btn btn-primary">Daftar STO</button>
         </div>
 
         <?php elseif ($role === 'KEUANGAN'): ?>
@@ -397,8 +407,11 @@ $canDecide = ($current === $role) && !$hasDecided;
     <?php endif; ?>
 </div>
 
+<!-- ================= SCRIPT ================= -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
+    // ---------------- Kirim keputusan (Approve/Reject) ----------------
     const buttons = document.querySelectorAll('.btn-decision');
 
     buttons.forEach(btn => {
@@ -407,12 +420,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const id = this.getAttribute('data-id');
             const role = this.getAttribute('data-role');
 
-            // Ambil nilai input sesuai role
-            let formData = new FormData();
+            const formData = new FormData();
             formData.append('invoice_id', id);
             formData.append('decision', decision);
 
-            // Ambil nomor MMJ & SOJ jika role ADMIN_PCS
             if (role === 'ADMIN_PCS') {
                 const no_mmj = document.getElementById('no_mmj')?.value || '';
                 const no_soj = document.getElementById('no_soj')?.value || '';
@@ -420,22 +431,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('no_soj', no_soj);
             }
 
-            // Ambil catatan sesuai role
             const noteField = document.getElementById('note_role');
             if (noteField) {
                 const noteValue = noteField.value.trim();
-                if (role === 'ADMIN_WILAYAH') {
-                    formData.append('note_admin_wilayah', noteValue);
-                } else if (role === 'PERWAKILAN_PI') {
-                    formData.append('note_perwakilan_pi', noteValue);
-                } else if (role === 'ADMIN_PCS') {
-                    formData.append('note_admin_pcs', noteValue);
-                } else if (role === 'KEUANGAN') {
-                    formData.append('note_keuangan', noteValue);
-                }
+                if (role === 'ADMIN_WILAYAH') formData.append('note_admin_wilayah', noteValue);
+                else if (role === 'PERWAKILAN_PI') formData.append('note_perwakilan_pi',
+                    noteValue);
+                else if (role === 'ADMIN_PCS') formData.append('note_admin_pcs', noteValue);
+                else if (role === 'KEUANGAN') formData.append('note_keuangan', noteValue);
             }
 
-            // Kirim ke server
             fetch('index.php?page=scan&action=decide', {
                     method: 'POST',
                     body: formData
@@ -455,16 +460,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // ========= Widget multi uploader (drop zone + list) =========
+    // ---------------- Widget multi uploader (drop zone + list) ----------------
     function initMultiUploader(zoneId, inputId, listId, options = {}) {
         const zone = document.getElementById(zoneId);
         const input = document.getElementById(inputId);
         const list = document.getElementById(listId);
+
+        // null-guard: aman jika uploader tidak dirender (tergantung role)
+        if (!zone || !input || !list) return;
+
         const MAX_BYTES = (options.maxMB || 10) * 1024 * 1024;
         const ALLOWED = (options.allowed || ['pdf', 'png', 'jpg', 'jpeg', 'xls', 'xlsx']).map(x => x
             .toLowerCase());
 
-        const dt = new DataTransfer(); // buffer file
+        const dt = new DataTransfer();
 
         const extOf = (name) => (name.split('.').pop() || '').toLowerCase();
         const labelOf = (name) => {
@@ -483,10 +492,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const li = document.createElement('li');
                 li.className = 'file-pill';
                 li.innerHTML = `
-          <span class="file-badge">${labelOf(f.name)}</span>
-          <span class="flex-grow-1 text-truncate">${f.name}</span>
-          <button type="button" class="file-remove" title="Hapus">&times;</button>
-        `;
+                    <span class="file-badge">${labelOf(f.name)}</span>
+                    <span class="flex-grow-1 text-truncate">${f.name}</span>
+                    <button type="button" class="file-remove" title="Hapus">&times;</button>
+                `;
                 li.querySelector('.file-remove').addEventListener('click', () => {
                     const newDt = new DataTransfer();
                     Array.from(dt.files).forEach((ff, i) => {
@@ -518,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
             renderList();
         }
 
-        zone.addEventListener('click', () => input.click());
+        // tidak memakai input.click() karena input menjadi overlay transparan
         input.addEventListener('change', (e) => acceptFiles(e.target.files));
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev =>
@@ -528,11 +537,25 @@ document.addEventListener('DOMContentLoaded', function() {
             })
         );
         zone.addEventListener('drop', e => acceptFiles(e.dataTransfer.files));
+
+        // aksesibilitas (enter/space fokus pada zone akan memfokuskan input)
+        zone.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                input.focus(); // fokuskan ke input (meski transparan)
+            }
+        });
     }
 
-    // inisialisasi widget upload
+    // inisialisasi uploader: aman meski tidak dirender (null-guard)
     initMultiUploader('dz-create', 'files-create', 'list-create', {
         maxMB: 10
     });
+
+    // ---------------- Placeholder: tombol "Daftar STO" (opsional) ----------------
+    // document.getElementById('btn-daftar-sto')?.addEventListener('click', () => {
+    //     // Implementasi sesuai kebutuhan (submit form lain, dsb.)
+    //     alert('Tombol "Daftar STO" ditekan (placeholder).');
+    // });
 });
 </script>
