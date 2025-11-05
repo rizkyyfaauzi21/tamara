@@ -77,6 +77,22 @@ if ($action === 'fetch') {
         ");
         $stmt->execute([$invId]);
         $inv = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($role === 'ADMIN_WILAYAH') {
+            $stmt = $conn->prepare("
+        SELECT COUNT(*) 
+        FROM user_admin_wilayah uaw
+        JOIN gudang g ON g.id_wilayah = uaw.id_wilayah
+        WHERE uaw.id_user = ? AND g.id = ?
+    ");
+            $stmt->execute([$userId, $inv['gudang_id']]);
+            $allowed = $stmt->fetchColumn();
+
+            if (!$allowed) {
+                http_response_code(403);
+                exit('Anda bukan admin wilayah untuk invoice ini.');
+            }
+        }
         if (!$inv) {
             http_response_code(404);
             exit('Invoice tidak ditemukan');
@@ -155,6 +171,25 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // pastikan hanya admin wilayah yang sesuai bisa approve invoice
+        if ($role === 'ADMIN_WILAYAH') {
+            $stmt = $conn->prepare("
+        SELECT COUNT(*) 
+        FROM user_admin_wilayah uaw
+        JOIN gudang g ON g.id_wilayah = uaw.id_wilayah
+        JOIN invoice i ON i.gudang_id = g.id
+        WHERE uaw.id_user = ? AND i.id = ?
+    ");
+            $stmt->execute([$userId, $invId]);
+            $allowed = $stmt->fetchColumn();
+
+            if (!$allowed) {
+                echo json_encode(['success' => false, 'message' => 'Anda bukan admin wilayah untuk invoice ini.']);
+                exit;
+            }
+        }
+
+
         // simpan log
         $stmt = $conn->prepare("
           INSERT INTO `approval_log` (`invoice_id`,`role`,`status`,`created_by`,`created_at`)
@@ -181,19 +216,19 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
         $upd->execute([$next, $invId]); // $next bisa null saat selesai
 
-       if ($role === 'ADMIN_PCS') {
-    $no_soj = $_POST['no_soj'] ?? null;
-    $no_mmj = $_POST['no_mmj'] ?? null;
-    $upd = $conn->prepare("UPDATE `invoice` 
+        if ($role === 'ADMIN_PCS') {
+            $no_soj = $_POST['no_soj'] ?? null;
+            $no_mmj = $_POST['no_mmj'] ?? null;
+            $upd = $conn->prepare("UPDATE `invoice` 
         SET `current_role` = ?, 
             `no_soj` = COALESCE(?, `no_soj`), 
             `no_mmj` = COALESCE(?, `no_mmj`)
         WHERE `id` = ?");
-    $upd->execute([$next, $no_soj, $no_mmj, $invId]);
-} else {
-    $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
-    $upd->execute([$next, $invId]);
-}
+            $upd->execute([$next, $no_soj, $no_mmj, $invId]);
+        } else {
+            $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
+            $upd->execute([$next, $invId]);
+        }
 
 
         echo json_encode(['success' => true, 'next' => $next]);
