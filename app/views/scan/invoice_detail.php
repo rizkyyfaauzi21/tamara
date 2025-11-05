@@ -67,6 +67,15 @@
     gap: .5rem;
 }
 
+.uploader {
+    position: relative;
+    /* <-- tambahkan ini */
+    border: 2px dashed #cfe3ff;
+    border-radius: 12px;
+    background: #f7fbff;
+    cursor: pointer;
+}
+
 /* Label overlay yang menutupi seluruh area dropzone */
 .upload-label-overlay {
     position: absolute;
@@ -204,21 +213,23 @@ if ($hasDecided) {
     </div>
 
     <?php if ($isRevision): ?>
-        <div class="alert alert-warning">
-            <div><i class="bi bi-exclamation-triangle"></i> Dokumen direvisi oleh <strong><?= htmlspecialchars($revisedBy) ?></strong></div>
-            <?php if ($canEdit): ?>
-                <div class="mt-2">
-                    <strong>Petunjuk:</strong>
-                    <ol class="mb-0">
-                        <li>Periksa catatan revisi dari <?= htmlspecialchars($revisedBy) ?></li>
-                        <li>Lakukan perbaikan yang diperlukan</li>
-                        <li>Klik "Approve" untuk melanjutkan ke tahap berikutnya</li>
-                    </ol>
-                </div>
-            <?php else: ?>
-                <div>Menunggu revisi dari <strong><?= htmlspecialchars($current) ?></strong></div>
-            <?php endif; ?>
+    <div class="alert alert-warning">
+        <div><i class="bi bi-exclamation-triangle"></i> Dokumen direvisi oleh
+            <strong><?= htmlspecialchars($revisedBy) ?></strong>
         </div>
+        <?php if ($canEdit): ?>
+        <div class="mt-2">
+            <strong>Petunjuk:</strong>
+            <ol class="mb-0">
+                <li>Periksa catatan revisi dari <?= htmlspecialchars($revisedBy) ?></li>
+                <li>Lakukan perbaikan yang diperlukan</li>
+                <li>Klik "Approve" untuk melanjutkan ke tahap berikutnya</li>
+            </ol>
+        </div>
+        <?php else: ?>
+        <div>Menunggu revisi dari <strong><?= htmlspecialchars($current) ?></strong></div>
+        <?php endif; ?>
+    </div>
     <?php endif; ?>
 
     <p class="mb-2">
@@ -380,71 +391,67 @@ if ($hasDecided) {
         <?php endif; ?>
 
         <!-- ✅ INPUT CATATAN SESUAI ROLE -->
-            <div class="mb-3">
-                <?php if ($role === 'ADMIN_WILAYAH'): ?>
-                    <label class="form-label fw-bold">
-                        Catatan Admin Wilayah
-                        <?php if ($canEdit): ?>
-                            <small class="text-muted">(Revisi)</small>
-                        <?php endif; ?>
-                    </label>
-                    <textarea id="note_role" class="form-control" rows="3" 
-                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"
-                    ><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
-
-                <?php elseif ($role === 'PERWAKILAN_PI'): ?>
-                    <label class="form-label fw-bold">
-                        Catatan Perwakilan PI
-                        <?php if ($canEdit): ?>
-                            <small class="text-muted">(Revisi)</small>
-                        <?php endif; ?>
-                    </label>
-                    <textarea id="note_role" class="form-control" rows="3" 
-                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"
-                    ><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
-                
-                <?php elseif ($role === 'ADMIN_PCS'): ?>
-                    <label class="form-label fw-bold">
-                        Catatan Admin PCS
-                        <?php if ($canEdit): ?>
-                            <small class="text-muted">(Revisi)</small>
-                        <?php endif; ?>
-                    </label>
-                    <textarea id="note_role" class="form-control" rows="3" 
-                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"
-                    ><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
-                
-                <?php elseif ($role === 'KEUANGAN'): ?>
-                    <label class="form-label fw-bold">
-                        Catatan Keuangan
-                        <?php if ($canEdit): ?>
-                            <small class="text-muted">(Revisi)</small>
-                        <?php endif; ?>
-                     </label>
-                    <textarea id="note_role" class="form-control" rows="3" 
-                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"
-                    ><?= htmlspecialchars($inv['note_keuangan'] ?? '') ?></textarea>
+        <div class="mb-3">
+            <?php if ($role === 'ADMIN_WILAYAH'): ?>
+            <label class="form-label fw-bold">
+                Catatan Admin Wilayah
+                <?php if ($canEdit): ?>
+                <small class="text-muted">(Revisi)</small>
                 <?php endif; ?>
-            </div>
+            </label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
 
-            <!-- Action buttons - tampilkan sesuai kondisi -->
-            <div class="text-end">
-                <?php if ($canDecide): ?>
-                    <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
-                        data-role="<?= htmlspecialchars($role) ?>">
-                        <i class="bi bi-check-circle"></i> 
-                        <?= $isRevision && $current === $role ? 'Approve Revisi' : 'Approve' ?>
-                    </button>
-                    <?php if ($role !== 'ADMIN_WILAYAH'): ?> 
-                        <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
-                            data-role="<?= htmlspecialchars($role) ?>">
-                            <i class="bi bi-x-circle"></i> Reject
-                        </button>
-                    <?php endif; ?>
+            <?php elseif ($role === 'PERWAKILAN_PI'): ?>
+            <label class="form-label fw-bold">
+                Catatan Perwakilan PI
+                <?php if ($canEdit): ?>
+                <small class="text-muted">(Revisi)</small>
                 <?php endif; ?>
-            </div>
+            </label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
 
+            <?php elseif ($role === 'ADMIN_PCS'): ?>
+            <label class="form-label fw-bold">
+                Catatan Admin PCS
+                <?php if ($canEdit): ?>
+                <small class="text-muted">(Revisi)</small>
+                <?php endif; ?>
+            </label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
+
+            <?php elseif ($role === 'KEUANGAN'): ?>
+            <label class="form-label fw-bold">
+                Catatan Keuangan
+                <?php if ($canEdit): ?>
+                <small class="text-muted">(Revisi)</small>
+                <?php endif; ?>
+            </label>
+            <textarea id="note_role" class="form-control" rows="3"
+                placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_keuangan'] ?? '') ?></textarea>
+            <?php endif; ?>
+        </div>
+
+        <!-- Action buttons - tampilkan sesuai kondisi -->
         <div class="text-end">
+            <?php if ($canDecide): ?>
+            <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
+                data-role="<?= htmlspecialchars($role) ?>">
+                <i class="bi bi-check-circle"></i>
+                <?= $isRevision && $current === $role ? 'Approve Revisi' : 'Approve' ?>
+            </button>
+            <?php if ($role !== 'ADMIN_WILAYAH'): ?>
+            <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
+                data-role="<?= htmlspecialchars($role) ?>">
+                <i class="bi bi-x-circle"></i> Reject
+            </button>
+            <?php endif; ?>
+            <?php endif; ?>
+        </div>
+
+        <!-- <div class="text-end">
             <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
                 data-role="<?= htmlspecialchars($role) ?>">
                 <i class="bi bi-check-circle"></i> Approve
@@ -453,7 +460,7 @@ if ($hasDecided) {
                 data-role="<?= htmlspecialchars($role) ?>">
                 <i class="bi bi-x-circle"></i> Reject
             </button>
-        </div>
+        </div> -->
         <?php endif; ?>
     </div>
 
@@ -631,5 +638,3 @@ document.addEventListener('DOMContentLoaded', function() {
     // });
 });
 </script>
-
-
