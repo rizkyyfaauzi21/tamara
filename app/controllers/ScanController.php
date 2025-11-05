@@ -3,6 +3,20 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../../config/database.php';
 
+/* ------------ Konfigurasi Upload ------------ */
+$UPLOAD_DIR   = realpath(__DIR__ . '/../../public') . '/uploads/sto/'; // path absolut
+$UPLOAD_URL   = 'uploads/sto/';                                        // URL relatif dari /public
+$MAX_MB       = 10;
+$MAX_BYTES    = $MAX_MB * 1024 * 1024;
+$ALLOWED_EXT  = ['pdf','png','jpg','jpeg','xls','xlsx'];
+
+if (!is_dir($UPLOAD_DIR)) {
+    @mkdir($UPLOAD_DIR, 0775, true);
+}
+if (!is_dir($UPLOAD_DIR) || !is_writable($UPLOAD_DIR)) {
+    $_SESSION['error'] = 'Folder upload tidak bisa ditulis: ' . $UPLOAD_DIR;
+}
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php?page=login');
     exit;
