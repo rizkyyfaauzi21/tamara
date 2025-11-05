@@ -280,25 +280,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const invoiceLineDetails = <?= json_encode($invoiceLineDetails ?? [], JSON_UNESCAPED_UNICODE) ?>;
 
     // === FILTER STO BERDASARKAN GUDANG & JENIS TRANSAKSI ===
-    function getFilteredSTOOpts() {
-        const selectedGudang = $('#sel-gudang-new').val();
-        const selectedJenis = $('#sel-trans-new').val();
-
-        if (!selectedGudang || !selectedJenis) {
-            return []; // Jika belum pilih keduanya, tidak ada STO yang ditampilkan
+    function getFilteredSTOOpts(gudangId, jenisTransaksi) {
+        if (!gudangId || !jenisTransaksi) {
+            return [];
         }
 
         return stoOpts.filter(opt => {
-            return String(opt.gudang_id) === String(selectedGudang) &&
-                opt.jenis_transaksi === selectedJenis;
+            return String(opt.gudang_id) === String(gudangId) &&
+                opt.jenis_transaksi === jenisTransaksi;
         });
     }
 
     // Utils
-    function buildSelectData(extraRows) {
-        const filtered = getFilteredSTOOpts();
+    function buildSelectData(gudangId, jenisTransaksi, extraRows) {
+        const filtered = getFilteredSTOOpts(gudangId, jenisTransaksi);
         const base = filtered.slice();
         const has = new Set(base.map(x => x.id));
+        
         (extraRows || []).forEach(r => {
             const rid = parseInt(r.id);
             if (!has.has(rid)) {
@@ -319,9 +317,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // === REFRESH STO DROPDOWN SAAT FILTER BERUBAH ===
+    // === REFRESH STO DROPDOWN SAAT FILTER BERUBAH (CREATE) ===
     function refreshCreateTable() {
         const $tbody = $('#tbl-sto-new tbody');
+        const selectedGudang = $('#sel-gudang-new').val();
+        const selectedJenis = $('#sel-trans-new').val();
 
         // Hapus semua baris
         $tbody.find('tr').each(function() {
@@ -333,7 +333,9 @@ document.addEventListener('DOMContentLoaded', function() {
         $tbody.empty();
 
         // Tambah baris baru dengan filter
-        addRowCreate($tbody, buildSelectData([]));
+        if (selectedGudang && selectedJenis) {
+            addRowCreate($tbody, buildSelectData(selectedGudang, selectedJenis, []));
+        }
     }
 
     // CREATE
@@ -404,10 +406,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // EVENT: Saat gudang atau jenis transaksi berubah
+    // EVENT: Saat gudang atau jenis transaksi berubah (CREATE)
     $('#sel-gudang-new,#sel-trans-new').on('change', function() {
         bindTarifNew();
-        refreshCreateTable(); // Refresh tabel STO dengan filter baru
+        refreshCreateTable();
     });
 
     $('#tbl-sto-new tbody').empty();
@@ -420,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        addRowCreate($('#tbl-sto-new tbody'), buildSelectData([]));
+        addRowCreate($('#tbl-sto-new tbody'), buildSelectData(selectedGudang, selectedJenis, []));
     });
 
     // VIEW
@@ -429,86 +431,36 @@ document.addEventListener('DOMContentLoaded', function() {
         const id = $(this).data('id');
         $.get('index.php?page=invoice_view_partial&id=' + id, html => {
             $('#modalInvoiceContent').html(html);
-            const m = bootstrap.Modal.getOrCreateInstance(document.getElementById(
-                'modalInvoice'));
+            const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalInvoice'));
             m.show();
         });
     });
 
     // ===== EDIT =====
-    function getSelectedIds($tbody) {
-        const s = new Set();
-        $tbody.find('select.sto-sel').each(function() {
-            const v = $(this).val();
-            if (v) s.add(parseInt(v));
-        });
-        return s;
-    }
+    function refreshEditTable() {
+        const $tbody = $('#tbl-sto-edit tbody');
+        const selectedGudang = $('#edit-gdg').val();
+        const selectedJenis = $('#edit-trans').val();
 
-    function rebuildOneSelect($sel, baseData, selectedIds) {
-        const keep = $sel.val() ? parseInt($sel.val()) : null;
-
-        const data = baseData.map(o => ({
-            id: o.id,
-            text: o.text,
-            disabled: (selectedIds.has(o.id) && o.id !== keep)
-        }));
-
-        // aman destroy kalau memang sudah select2
-        $sel.off('select2:select select2:clear change');
-        if ($sel.hasClass('select2-hidden-accessible')) {
-            $sel.select2('destroy');
-        }
-
-        $sel.empty().append('<option></option>');
-        $sel.select2({
-            data,
-            placeholder: 'Cari Nomor STO…',
-            allowClear: true,
-            width: '100%',
-            // PENTING: supaya dropdown muncul di atas modal, bukan di body
-            dropdownParent: $('#modalEdit')
-        });
-
-        if (keep) $sel.val(String(keep)).trigger('change');
-
-        const $row = $sel.closest('tr');
-
-        $sel.on('select2:select', e => {
-            const id = e.params.data.id;
-            const d = stoData[id] || {};
-            $row.find('.tgl').text(d.tanggal_terbit || d.tanggal || '');
-            $row.find('.gdg').text(d.nama_gudang || '');
-            $row.find('.trp').text(d.transportir || '');
-            $row.find('.norm').text(d.tonase_normal || '');
-            $row.find('.lemb').text(d.tonase_lembur || '');
-            const j = (parseFloat(d.tonase_normal || 0) + parseFloat(d.tonase_lembur || 0));
-            $row.find('.jml').text(isNaN(j) ? '' : j);
-            $row.find('.ket').text(d.keterangan || '');
-            refreshAll($row.closest('tbody'), baseData);
-        }).on('select2:clear change', () => {
-            if (!$sel.val()) {
-                $row.find('.tgl,.gdg,.trp,.norm,.lemb,.jml,.ket').text('');
-                refreshAll($row.closest('tbody'), baseData);
-                // Biar user langsung bisa pilih lagi
-                setTimeout(() => {
-                    $sel.select2('open');
-                }, 0);
+        // Hapus semua baris
+        $tbody.find('tr').each(function() {
+            const $sel = $(this).find('.sto-sel');
+            if ($sel.hasClass('select2-hidden-accessible')) {
+                $sel.select2('destroy');
             }
         });
+        $tbody.empty();
+
+        // Tambah baris baru dengan filter
+        if (selectedGudang && selectedJenis) {
+            addRowEdit($tbody, buildSelectData(selectedGudang, selectedJenis, []));
+        }
     }
 
-    function refreshAll($tbody, baseData) {
-        const selectedIds = getSelectedIds($tbody);
-        $tbody.find('select.sto-sel').each(function() {
-            rebuildOneSelect($(this), baseData, selectedIds);
-        });
-    }
-
-    function addRowEdit($tbody, baseData, selected = null, detail = null) {
+    function addRowEdit($tbody, selectData, selected = null, detail = null) {
         const $r = $(`<tr>
       <td class="no"></td>
-      <td><select name="sto_ids[]" class="form-control sto-sel"><option></option></select></td>
+      <td><select name="sto_ids[]" class="form-control sto-sel" required><option></option></select></td>
       <td class="tgl"></td><td class="gdg"></td><td class="trp"></td>
       <td class="norm"></td><td class="lemb"></td><td class="jml"></td><td class="ket"></td>
       <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger rm">–</button></td>
@@ -516,10 +468,33 @@ document.addEventListener('DOMContentLoaded', function() {
         $tbody.append($r);
         renumber($tbody);
 
-        rebuildOneSelect($r.find('.sto-sel'), baseData, getSelectedIds($tbody));
+        const sel = $r.find('.sto-sel').select2({
+                data: selectData,
+                placeholder: 'Cari Nomor STO…',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#modalEdit')
+            })
+            .on('select2:select', e => {
+                const id = e.params.data.id;
+                const d = stoData[id] || {};
+                $r.find('.tgl').text(d.tanggal_terbit || d.tanggal || '');
+                $r.find('.gdg').text(d.nama_gudang || '');
+                $r.find('.trp').text(d.transportir || '');
+                $r.find('.norm').text(d.tonase_normal || '');
+                $r.find('.lemb').text(d.tonase_lembur || '');
+                const j = (parseFloat(d.tonase_normal || 0) + parseFloat(d.tonase_lembur || 0));
+                $r.find('.jml').text(isNaN(j) ? '' : j);
+                $r.find('.ket').text(d.keterangan || '');
+            })
+            .on('select2:clear change', () => {
+                if (!sel.val()) {
+                    $r.find('.tgl,.gdg,.trp,.norm,.lemb,.jml,.ket').text('');
+                }
+            });
 
         if (selected) {
-            $r.find('.sto-sel').val(String(selected)).trigger('change');
+            sel.val(String(selected)).trigger('change');
             const d = detail || stoData[selected] || {};
             $r.find('.tgl').text(d.tanggal_terbit || d.tanggal || '');
             $r.find('.gdg').text(d.nama_gudang || '');
@@ -529,17 +504,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const j = (parseFloat(d.tonase_normal || 0) + parseFloat(d.tonase_lembur || 0));
             $r.find('.jml').text(isNaN(j) ? '' : j);
             $r.find('.ket').text(d.keterangan || '');
-            refreshAll($tbody, baseData);
         }
 
-        $r.find('.rm').on('click', () => {
+        $r.find('.rm').click(() => {
             $r.remove();
             renumber($tbody);
-            refreshAll($tbody, baseData);
         });
     }
 
-    // Klik Edit (delegasi) – pastikan modal tampil
+    // Klik Edit
     $(document).on('click', '.btn-edit', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -551,24 +524,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // header
+        // Set header
         $('#edit-invoice-id').val(id);
         $('#edit-bulan').val(hdr.bulan || '');
         $('#edit-jp').val(hdr.jenis_pupuk || '');
-        $('#edit-gdg').val(hdr.gudang_id || '').trigger('change');
-        $('#edit-trans').val(hdr.jenis_transaksi || '').trigger('change');
+        $('#edit-gdg').val(hdr.gudang_id || '');
+        $('#edit-trans').val(hdr.jenis_transaksi || '');
         $('#edit-uraian').val(hdr.uraian_pekerjaan || '');
         $('#edit-tn').val(hdr.tarif_normal || '');
         $('#edit-tl').val(hdr.tarif_lembur || '');
 
-        // rows
+        // Rows
         const lines = (invoiceLines && (invoiceLines[id] || invoiceLines[String(id)])) || [];
-        const detail = (invoiceLineDetails && (invoiceLineDetails[id] || invoiceLineDetails[String(
-            id)])) || [];
+        const detail = (invoiceLineDetails && (invoiceLineDetails[id] || invoiceLineDetails[String(id)])) || [];
 
         const $tb = $('#tbl-sto-edit tbody');
         $tb.empty();
-        const baseData = buildSelectData(detail);
+
+        // Build data dengan filter sesuai gudang dan transaksi dari invoice
+        const baseData = buildSelectData(hdr.gudang_id, hdr.jenis_transaksi, detail);
 
         if (detail.length) {
             detail.forEach(d => addRowEdit($tb, baseData, d.id, d));
@@ -578,14 +552,26 @@ document.addEventListener('DOMContentLoaded', function() {
             addRowEdit($tb, baseData);
         }
 
-        $('#btn-add-edit').off('click').on('click', () => addRowEdit($tb, baseData));
+        // Handler tombol tambah baris di edit
+        $('#btn-add-edit').off('click').on('click', () => {
+            const selectedGudang = $('#edit-gdg').val();
+            const selectedJenis = $('#edit-trans').val();
+
+            if (!selectedGudang || !selectedJenis) {
+                alert('Silakan pilih Gudang dan Jenis Transaksi terlebih dahulu!');
+                return;
+            }
+
+            addRowEdit($tb, buildSelectData(selectedGudang, selectedJenis, detail));
+        });
+
         $('#frm-edit').attr('action', 'index.php?page=report_update&id=' + id);
 
         const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEdit'));
         m.show();
     });
 
-    // tarif di edit
+    // Tarif di edit
     function bindTarifEdit() {
         const g = $('#edit-gdg').val(),
             t = $('#edit-trans').val();
@@ -599,6 +585,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 $('#edit-tl').val(d.tarif_lembur);
             });
     }
-    $('#edit-gdg,#edit-trans').on('change', bindTarifEdit);
+
+    // Event: Saat gudang atau jenis transaksi berubah di Edit
+    $('#edit-gdg,#edit-trans').on('change', function() {
+        bindTarifEdit();
+        refreshEditTable();
+    });
 });
 </script>
