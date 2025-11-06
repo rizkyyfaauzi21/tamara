@@ -86,14 +86,16 @@ foreach ($stoList as $s) {
                         <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_gudang']) ?></option>
                     <?php endforeach; ?>
                 </select> -->
+                <input type="hidden" name="gudang_id" id="gudang_id" value="<?= $gudang_id ?>">
                     <input
                         type="text"
-                        name="nama_gudang"
+                        name="gudang_nama"
                         id="edit-nama-gudang"
                         class="form-control"
                         placeholder="Nama Gudang"
                         value="<?= htmlspecialchars($nama_gudang) ?: '-' ?>"
                         readonly>
+
                 </div>
                 <div class="col-md-3">
                     <label>Jenis Kegiatan</label>
@@ -456,8 +458,8 @@ foreach ($stoList as $s) {
 
 
         function bindTarifNew() {
-            const gudang = $('#sel-gudang-new').val();
-            const jenis = $('#sel-trans-new').val();
+              const gudang = $('#gudang_id').val();
+    const jenis = $('#sel-trans-new').val();
 
             if (!gudang || !jenis) return;
 
@@ -493,17 +495,18 @@ foreach ($stoList as $s) {
 
 
         $('#tbl-sto-new tbody').empty();
-        $('#btn-add-new').click(() => {
-            const selectedGudang = $('#sel-gudang-new').val();
-            const selectedJenis = $('#sel-trans-new').val();
+    $('#btn-add-new').click(() => {
+    const selectedGudang = $('#gudang_id').val(); // ✅ pakai hidden input
+    const selectedJenis = $('#sel-trans-new').val();
 
-            if (!selectedGudang || !selectedJenis) {
-                alert('Silakan pilih Gudang dan Jenis Kegiatan terlebih dahulu!');
-                return;
-            }
+    if (!selectedGudang || !selectedJenis) {
+        alert('Silakan pilih Gudang dan Jenis Kegiatan terlebih dahulu!');
+        return;
+    }
 
-            addRowCreate($('#tbl-sto-new tbody'), buildSelectData([]));
-        });
+    addRowCreate($('#tbl-sto-new tbody'), buildSelectData([]));
+});
+
 
         // VIEW
         $(document).on('click', '.btn-view', function(e) {
@@ -708,3 +711,4 @@ foreach ($stoList as $s) {
     //     }
     // });
 </script>
+

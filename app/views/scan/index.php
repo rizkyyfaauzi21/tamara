@@ -54,7 +54,7 @@ require __DIR__ . '/../layout/header.php';
     lastHitTs = now;
     busy = true;
 
-    statusElem.textContent = `QR terdeteksi: ${text}`;
+    statusElem.textContent = `QR terdeteksi:`;
 
     // extract id (supports URL with ?id=14 or plain "14")
     const m = text.match(/[\?&]id=(\d+)/);
@@ -67,7 +67,7 @@ require __DIR__ . '/../layout/header.php';
     loadInvoiceDetail(invoiceId);
   }
 
-  function loadInvoiceDetail(id) {
+   function loadInvoiceDetail(id) {
     detailDiv.innerHTML = `<p class="text-info">Memuat invoice #${id}&hellip;</p>`;
     fetch(`index.php?page=scan&action=fetch&id=${encodeURIComponent(id)}`)
       .then(res => {
@@ -75,7 +75,7 @@ require __DIR__ . '/../layout/header.php';
         return res.text();
       })
       .then(html => {
-        console.log("HTML invoice detail loaded");
+        console.log("HTML invoice detail:", html);
         detailDiv.innerHTML = html;
         attachDecisionHandlers(); // panggil JS validasi dari invoice_detail.php
         statusElem.textContent = 'Arahkan kamera ke QR code invoice';
@@ -83,7 +83,7 @@ require __DIR__ . '/../layout/header.php';
       })
       .catch(err => {
         detailDiv.innerHTML = `<div class="alert alert-warning">
-        Tagihan #${id} tidak terdaftar.<br><small>${err.message}</small>
+        Tagihan ini tidak dapat diakses karena tidak sesuai dengan wilayah Anda.
       </div>`;
         setTimeout(() => {
           detailDiv.innerHTML = '';

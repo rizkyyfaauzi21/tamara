@@ -19,6 +19,12 @@ $tarif_normal     = (float)($_POST['tarif_normal']  ?? 0);
 $tarif_lembur     = (float)($_POST['tarif_lembur']  ?? 0);
 $sto_ids          = $_POST['sto_ids']               ?? [];
 
+// echo "<pre>";
+// print_r($_POST);
+// echo "</pre>";
+// exit;
+
+
 if (
   !$bulan || !$jenis_pupuk || !$gudang_id || !$jenis_transaksi ||
   !$uraian_pekerjaan || $tarif_normal <= 0 || $tarif_lembur <= 0 ||

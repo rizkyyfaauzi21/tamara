@@ -17,5 +17,18 @@ $(document).ready(function() {
 });
 });
 </script>
+<!-- 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const transSelect = document.getElementById('sel-trans-new');
+    if (transSelect) {
+        transSelect.addEventListener('change', function() {
+            console.log("✅ Event change jalan, value:", this.value);
+        });
+    } else {
+        console.warn("❌ #sel-trans-new tidak ditemukan di DOM!");
+    }
+});
+</script> -->
 </body>
 </html>

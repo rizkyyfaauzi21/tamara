@@ -87,6 +87,24 @@ if ($action === 'fetch') {
         ");
         $stmt->execute([$invId]);
         $inv = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        
+        if ($role === 'ADMIN_WILAYAH') {
+            $stmt = $conn->prepare("
+        SELECT COUNT(*) 
+        FROM user_admin_wilayah uaw
+        JOIN gudang g ON g.id_wilayah = uaw.id_wilayah
+        WHERE uaw.id_user = ? AND g.id = ?
+    ");
+            $stmt->execute([$userId, $inv['gudang_id']]);
+            $allowed = $stmt->fetchColumn();
+
+            if (!$allowed) {
+                http_response_code(403);
+                exit('Anda bukan admin wilayah untuk invoice ini.');
+            }
+        }
+        
         if (!$inv) {
             http_response_code(404);
             exit('Invoice tidak ditemukan');
