@@ -11,9 +11,6 @@
   <?php if(isset($_SESSION['error'])): ?>
     <div class="alert alert-danger"><?= $_SESSION['error']; unset($_SESSION['error']);?></div>
   <?php endif;?>
-  <?php if(isset($_SESSION['warning'])): ?>
-    <div class="alert alert-warning"><?= $_SESSION['warning']; unset($_SESSION['warning']);?></div>
-  <?php endif;?>
   <?php if(isset($_SESSION['success'])): ?>
     <div class="alert alert-success"><?= $_SESSION['success']; unset($_SESSION['success']);?></div>
   <?php endif;?>
@@ -43,16 +40,12 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">Nama Gudang</label>
-     
-        <input 
-        type="text" 
-        name="nama_gudang" 
-        id="edit-nama-gudang" 
-        class="form-control" 
-        placeholder="Nama Gudang" 
-        value="<?= htmlspecialchars($nama_gudang) ?: '-' ?>" 
-        readonly
-    >
+      <select name="gudang_id" class="form-control" required>
+        <option value="">-- Pilih Gudang --</option>
+        <?php foreach($gudangs as $g): ?>
+          <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_gudang']) ?></option>
+        <?php endforeach;?>
+      </select>
     </div>
     <div class="col-md-4">
       <label class="form-label">Jenis Kegiatan</label>

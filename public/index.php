@@ -34,9 +34,6 @@ switch ($page) {
     case 'gudang':
         require __DIR__ . '/../app/controllers/GudangController.php';
         break;
-    case 'users':
-        require __DIR__ . '/../app/controllers/UserController.php';
-        break;
     case 'report':
         require __DIR__ . '/../app/controllers/ReportController.php';
         break;
