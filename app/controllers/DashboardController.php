@@ -43,6 +43,7 @@ require_once __DIR__ . '/../views/layout/header.php';
     <h1 class="h4 mb-3" style="color:var(--text);">Dashboard</h1>
 
     <div class="tile-grid">
+      <?php if ($role === 'ADMIN_GUDANG' || $role === 'KEPALA_GUDANG' || $role === 'SUPERADMIN') : ?>
 
       <!-- Data STO (Sales Transport Order) -->
       <a href="index.php?page=master_sto" class="tile" style="text-decoration:none; color:inherit;">
@@ -59,6 +60,7 @@ require_once __DIR__ . '/../views/layout/header.php';
           <p>Akses, kelola, dan perbarui Sales Transport Order dengan mudah.</p>
         </div>
       </a>
+      <?php endif; ?>
 
       <!-- Monitoring Tagihan (data + status, tanpa grafik) -->
       <a href="index.php?page=report" class="tile" style="text-decoration:none; color:inherit;">
@@ -105,6 +107,19 @@ require_once __DIR__ . '/../views/layout/header.php';
           </div>
           <h5>Data Gudang</h5>
           <p>Kelola data gudang beserta tarifnya secara terpusat dan efisien.</p>
+        </div>
+      </a>
+      <?php endif; ?>
+      <!-- Data Gudang (Superadmin only) -->
+      <?php if ($role === 'SUPERADMIN'): ?>
+      <a href="index.php?page=users" class="tile" style="text-decoration:none; color:inherit;">
+        <div class="tile-body">
+          <div class="tile-icon mb-2" aria-hidden="true" style="background:linear-gradient(140deg, var(--amber), var(--green))">
+            <!-- warehouse icon -->
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-user"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+          </div>
+          <h5>Data User</h5>
+          <p>Atur data pengguna dan hak akses sistem dengan mudah dan efisien.</p>
         </div>
       </a>
       <?php endif; ?>

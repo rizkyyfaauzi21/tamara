@@ -54,7 +54,7 @@ require __DIR__ . '/../layout/header.php';
     lastHitTs = now;
     busy = true;
 
-    statusElem.textContent = `QR terdeteksi: ${text}`;
+    statusElem.textContent = `QR terdeteksi`;
 
     // extract id (supports URL with ?id=14 or plain "14")
     const m = text.match(/[\?&]id=(\d+)/);
@@ -83,7 +83,7 @@ require __DIR__ . '/../layout/header.php';
       })
       .catch(err => {
         detailDiv.innerHTML = `<div class="alert alert-warning">
-        Tagihan #${id} tidak terdaftar.<br><small>${err.message}</small>
+        Tagihan ini tidak dapat diakses karena tidak sesuai dengan wilayah Anda.
       </div>`;
         setTimeout(() => {
           detailDiv.innerHTML = '';
