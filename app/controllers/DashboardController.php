@@ -43,6 +43,7 @@ require_once __DIR__ . '/../views/layout/header.php';
     <h1 class="h4 mb-3" style="color:var(--text);">Dashboard</h1>
 
     <div class="tile-grid">
+      <?php if ($role === 'ADMIN_GUDANG' || $role === 'KEPALA_GUDANG' || $role === 'SUPERADMIN') : ?>
 
       <!-- Data STO (Sales Transport Order) -->
       <a href="index.php?page=master_sto" class="tile" style="text-decoration:none; color:inherit;">
@@ -59,6 +60,7 @@ require_once __DIR__ . '/../views/layout/header.php';
           <p>Akses, kelola, dan perbarui Sales Transport Order dengan mudah.</p>
         </div>
       </a>
+      <?php endif; ?>
 
       <!-- Monitoring Tagihan (data + status, tanpa grafik) -->
       <a href="index.php?page=report" class="tile" style="text-decoration:none; color:inherit;">
