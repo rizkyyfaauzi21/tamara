@@ -43,13 +43,7 @@
     </div>
     <div class="col-md-4">
       <label class="form-label">Nama Gudang</label>
-      <!-- <select name="gudang_id" class="form-control" required>
-        <option value="">-- Pilih Gudang --</option>
-        <?php foreach($gudangs as $g): ?>
-          <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_gudang']) ?></option>
-        <?php endforeach;?>
-      </select> -->
-
+     
         <input 
         type="text" 
         name="nama_gudang" 

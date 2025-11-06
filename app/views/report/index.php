@@ -57,14 +57,17 @@ foreach ($stoList as $s) {
         <div class="alert alert-success"><?= htmlspecialchars($_SESSION['success']) ?></div>
         <?php unset($_SESSION['success']); ?>
     <?php endif; ?>
-
+    <?php if (isset($_SESSION['warning'])): ?>
+        <div class="alert alert-warning"><?= $_SESSION['warning'];
+                                            unset($_SESSION['warning']); ?></div>
+    <?php endif; ?>
     <?php if (!empty($_SESSION['error'])): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($_SESSION['error']) ?></div>
         <?php unset($_SESSION['error']); ?>
     <?php endif; ?>
 
     <!-- FORM CREATE -->
-    <?php if ($role === 'ADMIN_GUDANG' || $role === 'KEPALA_GUDANG'): ?>
+    <?php if ($role === 'ADMIN_GUDANG' || $role === 'KEPALA_GUDANG' || $role === 'SUPERADMIN'): ?>
         <form id="frm-create" method="POST" action="index.php?page=report_generate">
             <div class="row gy-3">
                 <div class="col-md-3">
@@ -337,27 +340,27 @@ foreach ($stoList as $s) {
             return hasil;
         }
 
-         console.log("currentGudangId:", currentGudangId);
-    console.log("stoOpts:", stoOpts);
+        console.log("currentGudangId:", currentGudangId);
+        console.log("stoOpts:", stoOpts);
 
-    const tarifData = {
-        normal: <?= json_encode($tarif_normal) ?>,
-        lembur: <?= json_encode($tarif_lembur) ?>,
-    };
+        const tarifData = {
+            normal: <?= json_encode($tarif_normal) ?>,
+            lembur: <?= json_encode($tarif_lembur) ?>,
+        };
 
-    document.getElementById('sel-trans-new').addEventListener('change', function() {
-        const jenis = this.value;
-        const normalField = document.getElementById('fld-normal-new');
-        const lemburField = document.getElementById('fld-lembur-new');
+        document.getElementById('sel-trans-new').addEventListener('change', function() {
+            const jenis = this.value;
+            const normalField = document.getElementById('fld-normal-new');
+            const lemburField = document.getElementById('fld-lembur-new');
 
-        if (jenis === 'BONGKAR' || jenis === 'MUAT') {
-            normalField.value = tarifData.normal;
-            lemburField.value = tarifData.lembur;
-        } else {
-            normalField.value = '';
-            lemburField.value = '';
-        }
-    });
+            if (jenis === 'BONGKAR' || jenis === 'MUAT') {
+                normalField.value = tarifData.normal;
+                lemburField.value = tarifData.lembur;
+            } else {
+                normalField.value = '';
+                lemburField.value = '';
+            }
+        });
 
         // Utils
         function buildSelectData(extraRows) {
@@ -457,30 +460,33 @@ foreach ($stoList as $s) {
 
 
         function bindTarifNew() {
-    const gudang = $('#sel-gudang-new').val();
-    const jenis = $('#sel-trans-new').val();
+            const gudang = $('#sel-gudang-new').val();
+            const jenis = $('#sel-trans-new').val();
 
-    if (!gudang || !jenis) return;
+            if (!gudang || !jenis) return;
 
-    $.ajax({
-        url: 'ajax/get_tarif.php',
-        method: 'POST',
-        data: { gudang, jenis },
-        dataType: 'json',
-        success: function (data) {
-            if (data.success) {
-                $('#tarif-normal-new').val(data.tarif_normal);
-                $('#tarif-lembur-new').val(data.tarif_lembur);
-            } else {
-                $('#tarif-normal-new').val('');
-                $('#tarif-lembur-new').val('');
-            }
-        },
-        error: function (xhr, status, error) {
-            console.error('Error mengambil tarif:', error);
+            $.ajax({
+                url: 'ajax/get_tarif.php',
+                method: 'POST',
+                data: {
+                    gudang,
+                    jenis
+                },
+                dataType: 'json',
+                success: function(data) {
+                    if (data.success) {
+                        $('#tarif-normal-new').val(data.tarif_normal);
+                        $('#tarif-lembur-new').val(data.tarif_lembur);
+                    } else {
+                        $('#tarif-normal-new').val('');
+                        $('#tarif-lembur-new').val('');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error mengambil tarif:', error);
+                }
+            });
         }
-    });
-}
 
 
         // EVENT: Saat gudang atau jenis transaksi berubah

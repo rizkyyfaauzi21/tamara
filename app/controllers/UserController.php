@@ -169,9 +169,23 @@ if ($action === 'deleteUser' && isset($_GET['delete'])) {
 }
 
 
+// untuk menampilkan list gudang yang belum memiliki admin gudang atau kepala gudang buat di select saat menambahkan admin gudang / kepala gudang
+$gudangList = $conn->query("SELECT g.*
+  FROM gudang g
+  LEFT JOIN users u ON g.id = u.id_gudang
+    AND u.role IN ('admin_gudang', 'kepala_gudang')
+  GROUP BY g.id
+  HAVING COUNT(DISTINCT u.role) < 2;")->fetchAll(PDO::FETCH_ASSOC);
 
-$gudangList = $conn->query("SELECT * FROM gudang")->fetchAll(PDO::FETCH_ASSOC);
-$wilayahList = $conn->query("SELECT * FROM wilayah")->fetchAll(PDO::FETCH_ASSOC);
+// untuk menampilkan list wilayah yang belum memiliki admin wilayah buat di select saat menambahkan admin wilayah
+$wilayahList = $conn->query("  SELECT w.*
+  FROM wilayah w
+  LEFT JOIN user_admin_wilayah uaw ON w.id = uaw.id_wilayah
+  LEFT JOIN users u ON uaw.id_user = u.id AND u.role = 'admin_wilayah'
+  WHERE u.id IS NULL
+")->fetchAll(PDO::FETCH_ASSOC);
+
+// menampilkan list user role admin gudang
 $admin_gudangList = $conn->query("SELECT 
   u.id, 
   u.nama, 
@@ -183,8 +197,7 @@ FROM users u
 JOIN gudang g ON u.id_gudang = g.id 
 WHERE u.role = 'ADMIN_GUDANG';")->fetchAll(PDO::FETCH_ASSOC);
 
-
-
+// menampilkan list user role kepala gudang
 $kepala_gudangList = $conn->query("SELECT 
   u.id, 
   u.nama, 
