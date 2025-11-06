@@ -4,8 +4,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];
 
-    error_log("Login attempt for user: $username");
-
     // Ambil user dari database
     $stmt = $conn->prepare("SELECT * FROM users WHERE username = :username LIMIT 1");
     $stmt->execute(['username' => $username]);
