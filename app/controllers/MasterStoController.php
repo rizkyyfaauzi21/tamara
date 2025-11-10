@@ -24,6 +24,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $userId = $_SESSION['user_id'] ?? null;
+$role = $_SESSION['role'] ?? null;
 
 /* ------------ Hapus 1 file lampiran ------------ */
 if (($_GET['action'] ?? '') === 'del_file' && !empty($_GET['file_id'])) {
@@ -43,7 +44,7 @@ if (($_GET['action'] ?? '') === 'get' && !empty($_GET['id'])) {
   $stmt = $conn->prepare("
       SELECT s.*, g.nama_gudang
       FROM sto s
-      JOIN gudang g ON s.gudang_id = g.id
+      LEFT JOIN gudang g ON s.gudang_id = g.id
       WHERE s.id = :id
     ");
   $stmt->execute(['id' => $_GET['id']]);
@@ -301,15 +302,17 @@ if ($userId) {
     $nama_gudang = $row['nama_gudang'];
   }
 }
-
-$stoList = $conn->query("
+$stmt = $conn->prepare("
   SELECT s.*, g.nama_gudang,
          (s.tonase_normal + s.tonase_lembur) AS jumlah
-    FROM sto s
-    JOIN gudang g ON s.gudang_id=g.id
-   ORDER BY s.created_at DESC
-")->fetchAll(PDO::FETCH_ASSOC);
-
+  FROM sto s
+  JOIN gudang g ON s.gudang_id = g.id
+  JOIN users u ON u.id_gudang = g.id
+  WHERE u.id = :user_id
+  ORDER BY s.created_at DESC
+");
+$stmt->execute(['user_id' => $userId]);
+$stoList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // map files per STO
 $filesBySto = [];
 if ($stoList) {
