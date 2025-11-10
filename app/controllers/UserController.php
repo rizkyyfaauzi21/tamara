@@ -11,118 +11,119 @@ require_once __DIR__ . '/../views/layout/header.php';
 $action = $_GET['action'] ?? null;
 
 
-
-//
 if ($action === 'tambah_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tambah_user = $_POST['tambah_user'];
-
     try {
         $conn->beginTransaction();
 
+        $id_user = $_POST['id'] ?? null;
+        $nama = trim($_POST['nama']);
+        $username = trim($_POST['username']);
+        $role = $_POST['role'];
+        $password = $_POST['password'] ?? '';
+        $id_gudang = in_array($role, ['ADMIN_GUDANG', 'KEPALA_GUDANG']) && !empty($_POST['id_gudang'])
+            ? $_POST['id_gudang']
+            : null;
+
+        // Normalisasi id_wilayah agar selalu array
+        $wilayahList = isset($_POST['id_wilayah'])
+            ? (is_array($_POST['id_wilayah']) ? $_POST['id_wilayah'] : [$_POST['id_wilayah']])
+            : [];
+
+        // === VALIDASI USERNAME UNIK ===
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM users WHERE username = :username" . ($id_user ? " AND id != :id" : ""));
+        $params = ['username' => $username];
+        if ($id_user) $params['id'] = $id_user;
+        $stmt->execute($params);
+        if ($stmt->fetchColumn() > 0) {
+            $_SESSION['error'] = "Username sudah digunakan!";
+            header("Location: index.php?page=users");
+            exit;
+        }
+
+       
+
         // === MODE EDIT USER ===
-        if (!empty($_POST['id'])) {
-            $id_user = $_POST['id'];
-            $id_gudang = null;
-
-            if (in_array($_POST['role'], ['ADMIN_GUDANG', 'KEPALA_GUDANG'])) {
-                $id_gudang = !empty($_POST['id_gudang']) ? $_POST['id_gudang'] : null;
-            }
-
-            // --- Update data user utama ---
-            if (!empty($_POST['password'])) {
-                // Jika password diisi → update semuanya
+        if (!empty($id_user)) {
+            // Update data utama
+            if (!empty($password)) {
                 $stmt = $conn->prepare("
                     UPDATE users 
-                    SET nama = :nama, username = :username, role = :role, id_gudang = :id_gudang, password = :password 
+                    SET nama = :nama, username = :username, role = :role, id_gudang = :id_gudang, password = :password
                     WHERE id = :id
                 ");
                 $stmt->execute([
-                    'nama' => $_POST['nama'],
-                    'username' => $_POST['username'],
-                    'role' => $_POST['role'],
+                    'nama' => $nama,
+                    'username' => $username,
+                    'role' => $role,
                     'id_gudang' => $id_gudang,
-                    'password' => password_hash($_POST['password'], PASSWORD_DEFAULT),
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
                     'id' => $id_user
                 ]);
             } else {
-                // Password tidak diubah
                 $stmt = $conn->prepare("
                     UPDATE users 
-                    SET nama = :nama, username = :username, role = :role, id_gudang = :id_gudang 
+                    SET nama = :nama, username = :username, role = :role, id_gudang = :id_gudang
                     WHERE id = :id
                 ");
                 $stmt->execute([
-                    'nama' => $_POST['nama'],
-                    'username' => $_POST['username'],
-                    'role' => $_POST['role'],
+                    'nama' => $nama,
+                    'username' => $username,
+                    'role' => $role,
                     'id_gudang' => $id_gudang,
                     'id' => $id_user
                 ]);
             }
 
-            // --- Jika role ADMIN_WILAYAH, perbarui data wilayahnya ---
-            if ($_POST['role'] === 'ADMIN_WILAYAH') {
-                // Hapus data wilayah lama
-                $stmtDel = $conn->prepare("DELETE FROM user_admin_wilayah WHERE id_user = :id_user");
-                $stmtDel->execute(['id_user' => $id_user]);
+            // Hapus wilayah lama
+            $stmtDel = $conn->prepare("DELETE FROM user_admin_wilayah WHERE id_user = :id_user");
+            $stmtDel->execute(['id_user' => $id_user]);
 
-                // Insert ulang wilayah baru
-                if (!empty($_POST['id_wilayah']) && is_array($_POST['id_wilayah'])) {
-                    $stmtWilayah = $conn->prepare("
-                        INSERT INTO user_admin_wilayah (id_user, id_wilayah)
-                        VALUES (:id_user, :id_wilayah)
-                    ");
-                    foreach ($_POST['id_wilayah'] as $wilayah_id) {
-                        $stmtWilayah->execute([
-                            'id_user' => $id_user,
-                            'id_wilayah' => $wilayah_id
-                        ]);
-                    }
+            // Tambah wilayah baru (jika ADMIN_WILAYAH)
+            if ($role === 'ADMIN_WILAYAH' && !empty($wilayahList)) {
+                $stmtWilayah = $conn->prepare("
+                    INSERT INTO user_admin_wilayah (id_user, id_wilayah)
+                    VALUES (:id_user, :id_wilayah)
+                ");
+                foreach ($wilayahList as $wilayah_id) {
+                    $stmtWilayah->execute([
+                        'id_user' => $id_user,
+                        'id_wilayah' => $wilayah_id
+                    ]);
                 }
-            } else {
-                // Jika bukan ADMIN_WILAYAH, pastikan datanya tidak nyangkut
-                $stmtDel = $conn->prepare("DELETE FROM user_admin_wilayah WHERE id_user = :id_user");
-                $stmtDel->execute(['id_user' => $id_user]);
             }
 
-            $conn->commit();
             $_SESSION['success'] = "Data user berhasil diperbarui.";
 
         // === MODE TAMBAH USER BARU ===
         } else {
-            if (empty($_POST['password'])) {
+            if (empty($password)) {
                 $_SESSION['error'] = "Password wajib diisi untuk user baru!";
                 header("Location: index.php?page=users");
                 exit;
             }
 
-            $id_gudang = null;
-            if (in_array($_POST['role'], ['ADMIN_GUDANG', 'KEPALA_GUDANG'])) {
-                $id_gudang = !empty($_POST['id_gudang']) ? $_POST['id_gudang'] : null;
-            }
-
-            // Insert user utama
+            // Tambah data user baru
             $stmt = $conn->prepare("
                 INSERT INTO users (nama, username, role, id_gudang, password)
                 VALUES (:nama, :username, :role, :id_gudang, :password)
             ");
             $stmt->execute([
-                'nama' => $_POST['nama'],
-                'username' => $_POST['username'],
-                'role' => $_POST['role'],
+                'nama' => $nama,
+                'username' => $username,
+                'role' => $role,
                 'id_gudang' => $id_gudang,
-                'password' => password_hash($_POST['password'], PASSWORD_DEFAULT)
+                'password' => password_hash($password, PASSWORD_DEFAULT)
             ]);
 
             $user_id = $conn->lastInsertId();
 
-            // Jika ADMIN_WILAYAH, masukkan ke tabel relasi
-            if ($_POST['role'] === 'ADMIN_WILAYAH' && !empty($_POST['id_wilayah']) && is_array($_POST['id_wilayah'])) {
+            // Masukkan wilayah (jika ADMIN_WILAYAH)
+            if ($role === 'ADMIN_WILAYAH' && !empty($wilayahList)) {
                 $stmtWilayah = $conn->prepare("
                     INSERT INTO user_admin_wilayah (id_user, id_wilayah)
                     VALUES (:id_user, :id_wilayah)
                 ");
-                foreach ($_POST['id_wilayah'] as $wilayah_id) {
+                foreach ($wilayahList as $wilayah_id) {
                     $stmtWilayah->execute([
                         'id_user' => $user_id,
                         'id_wilayah' => $wilayah_id
@@ -130,10 +131,10 @@ if ($action === 'tambah_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $conn->commit();
             $_SESSION['success'] = "User baru berhasil ditambahkan.";
         }
 
+        $conn->commit();
     } catch (PDOException $e) {
         $conn->rollBack();
         $_SESSION['error'] = "Terjadi kesalahan: " . $e->getMessage();
@@ -143,17 +144,18 @@ if ($action === 'tambah_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// === HAPUS USER ===
 if ($action === 'deleteUser' && isset($_GET['delete'])) {
     $id = $_GET['delete'];
 
     try {
         $conn->beginTransaction();
 
-        // Hapus dari tabel relasi dulu
+        // Hapus relasi wilayah
         $stmt = $conn->prepare("DELETE FROM user_admin_wilayah WHERE id_user = :id_user");
         $stmt->execute(['id_user' => $id]);
 
-        // Baru hapus user utama
+        // Hapus user utama
         $stmt = $conn->prepare("DELETE FROM users WHERE id = :id");
         $stmt->execute(['id' => $id]);
 
@@ -168,22 +170,11 @@ if ($action === 'deleteUser' && isset($_GET['delete'])) {
     exit;
 }
 
+// menampilkan semua list gudang
+$allGudangList = $conn->query("SELECT * FROM gudang ORDER BY nama_gudang")->fetchAll(PDO::FETCH_ASSOC);
 
-// untuk menampilkan list gudang yang belum memiliki admin gudang atau kepala gudang buat di select saat menambahkan admin gudang / kepala gudang
-$gudangList = $conn->query("SELECT g.*
-  FROM gudang g
-  LEFT JOIN users u ON g.id = u.id_gudang
-    AND u.role IN ('admin_gudang', 'kepala_gudang')
-  GROUP BY g.id
-  HAVING COUNT(DISTINCT u.role) < 2;")->fetchAll(PDO::FETCH_ASSOC);
-
-// untuk menampilkan list wilayah yang belum memiliki admin wilayah buat di select saat menambahkan admin wilayah
-$wilayahList = $conn->query("  SELECT w.*
-  FROM wilayah w
-  LEFT JOIN user_admin_wilayah uaw ON w.id = uaw.id_wilayah
-  LEFT JOIN users u ON uaw.id_user = u.id AND u.role = 'admin_wilayah'
-  WHERE u.id IS NULL
-")->fetchAll(PDO::FETCH_ASSOC);
+// menampilkan list wilayah
+$wilayahList = $conn->query("SELECT * FROM wilayah")->fetchAll(PDO::FETCH_ASSOC);
 
 // menampilkan list user role admin gudang
 $admin_gudangList = $conn->query("SELECT 

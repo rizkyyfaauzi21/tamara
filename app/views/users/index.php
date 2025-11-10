@@ -150,8 +150,8 @@
                         <td><?= htmlspecialchars($g['role']) ?></td>
 
                         <td>
-                           <button type="button" class="btn btn-sm btn-warning"
-                            onclick="openEditModal(
+                            <button type="button" class="btn btn-sm btn-warning"
+                                onclick="openEditModal(
                                 <?= $g['id'] ?>,
                                 '<?= htmlspecialchars($g['nama']) ?>',
                                 '<?= htmlspecialchars($g['username']) ?>',
@@ -159,8 +159,8 @@
                                 '',
                                 '<?= htmlspecialchars($g['id_wilayah_ditangani'] ?? '') ?>'
                             )">
-                            Edit
-                           </button>
+                                Edit
+                            </button>
 
 
 
@@ -190,6 +190,8 @@
 
                 <form method="POST" action="index.php?page=users&action=tambah_user">
                     <input type="hidden" name="id" id="user_id">
+                    <input type="hidden" name="mode" id="mode" value="tambah">
+
                     <div class="modal-body">
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -218,13 +220,16 @@
 
                             <div class="col-md-6">
                                 <label for="id_gudang" class="form-label">Gudang</label>
-                                <select class="form-control" name="id_gudang" id="id_gudang">
+                                <select name="id_gudang" id="id_gudang" class="form-select">
                                     <option value="">-- Pilih Gudang --</option>
-                                    <?php foreach ($gudangList as $g): ?>
-                                        <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_gudang']) ?></option>
+                                    <?php foreach ($allGudangList as $g): ?>
+                                        <option value="<?= $g['id'] ?>">
+                                            <?= htmlspecialchars($g['nama_gudang']) ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+
                             <div class="col-md-6">
                                 <label for="id_wilayah" class="form-label">Wilayah</label>
                                 <select class="form-control" name="id_wilayah[]" id="id_wilayah" multiple>
@@ -237,7 +242,7 @@
 
                             <div class="col-md-6">
                                 <label for="password" class="form-label">Password</label>
-                                <input type="password" class="form-control" name="password" id="password" placeholder="Masukkan Password" >
+                                <input type="password" class="form-control" name="password" id="password" placeholder="Masukkan Password">
                             </div>
                         </div>
                     </div>
@@ -255,60 +260,73 @@
 
 </div>
 <script>
-   function openEditModal(id, nama, username, role, idGudang = '', idWilayahList = '') {
-    document.getElementById('user_id').value = id;
-    document.getElementById('nama').value = nama;
-    document.getElementById('username').value = username;
-    document.getElementById('role').value = role;
-    document.getElementById('id_gudang').value = idGudang || '';
+    function openEditModal(id, nama, username, role, idGudang = '', idWilayahList = '') {
+        document.getElementById('mode').value = 'edit';
+        // isi data umum
+        document.getElementById('user_id').value = id;
+        document.getElementById('nama').value = nama;
+        document.getElementById('username').value = username;
+        document.getElementById('role').value = role;
+        document.getElementById('password').value = '';
 
-    // Reset pilihan wilayah
-    const wilayahSelect = document.getElementById('id_wilayah');
-    for (let opt of wilayahSelect.options) opt.selected = false;
+        // trigger dulu perubahan role → supaya field gudang/wilayah muncul
+        document.getElementById('role').dispatchEvent(new Event('change'));
 
-    // Kalau role = ADMIN_WILAYAH, tandai wilayah yang dimiliki
-    if (role === 'ADMIN_WILAYAH' && idWilayahList) {
-        idWilayahList.split(',').forEach(id => {
-            const option = wilayahSelect.querySelector(`option[value="${id}"]`);
-            if (option) option.selected = true;
-        });
+        // beri jeda kecil agar DOM update dulu
+        setTimeout(() => {
+            // isi gudang jika ada
+            if (idGudang) {
+                const gudangSelect = document.getElementById('id_gudang');
+                gudangSelect.innerHTML = '<option value="">-- Pilih Gudang --</option>';
+
+                // inject ulang semua gudang (yang disembunyikan saat tambah)
+                <?php foreach ($allGudangList as $g): ?>
+                    gudangSelect.innerHTML += `<option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_gudang']) ?></option>`;
+                <?php endforeach; ?>
+
+                gudangSelect.value = idGudang;
+            }
+
+            // reset dan isi wilayah jika role admin_wilayah
+            const wilayahSelect = document.getElementById('id_wilayah');
+            for (let opt of wilayahSelect.options) opt.selected = false;
+
+            if (role === 'ADMIN_WILAYAH' && idWilayahList) {
+                idWilayahList.split(',').forEach(id => {
+                    const option = wilayahSelect.querySelector(`option[value="${id}"]`);
+                    if (option) option.selected = true;
+                });
+            }
+        }, 100);
+
+
+        // ubah label modal
+        document.getElementById('tambahUserModalLabel').textContent = 'Edit User';
+        var modal = new bootstrap.Modal(document.getElementById('tambahUserModal'));
+        modal.show();
     }
-
-    // Kosongkan password saat edit
-    document.getElementById('password').value = '';
-
-    // 🔥 Tambahkan trigger ini
-    document.getElementById('role').dispatchEvent(new Event('change'));
-
-    // Ubah label modal
-    document.getElementById('tambahUserModalLabel').textContent = 'Edit User';
-    var modal = new bootstrap.Modal(document.getElementById('tambahUserModal'));
-    modal.show();
-}
-
-
 </script>
 
 
 
 <script>
     const tambahUserModal = document.getElementById('tambahUserModal');
-tambahUserModal.addEventListener('hidden.bs.modal', function() {
-    const form = tambahUserModal.querySelector('form');
-    form.reset();
+    tambahUserModal.addEventListener('hidden.bs.modal', function() {
+        const form = tambahUserModal.querySelector('form');
+        form.reset();
 
-    document.getElementById('tambahUserModalLabel').textContent = 'Tambah User';
-    document.getElementById('user_id').value = '';
+        document.getElementById('tambahUserModalLabel').textContent = 'Tambah User';
+        document.getElementById('user_id').value = '';
 
-    // ✅ Tambahkan reset tampilan field role terkait
-    document.getElementById('id_gudang').closest('.col-md-6').style.display = 'none';
-    document.getElementById('id_wilayah').closest('.col-md-6').style.display = 'none';
+        document.getElementById('mode').value = 'tambah';
 
-    document.getElementById('id_gudang').required = false;
-    document.getElementById('id_wilayah').required = false;
-});
+        // ✅ Tambahkan reset tampilan field role terkait
+        document.getElementById('id_gudang').closest('.col-md-6').style.display = 'none';
+        document.getElementById('id_wilayah').closest('.col-md-6').style.display = 'none';
 
-
+        document.getElementById('id_gudang').required = false;
+        document.getElementById('id_wilayah').required = false;
+    });
 </script>
 
 <script>
@@ -338,23 +356,31 @@ tambahUserModal.addEventListener('hidden.bs.modal', function() {
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const roleSelect = document.getElementById('role');
-        const wilayahField = document.getElementById('id_wilayah').closest('.col-md-6'); // ambil container <div> dari dropdown wilayah
+        const gudangField = document.getElementById('id_gudang').closest('.col-md-6');
+        const wilayahField = document.getElementById('id_wilayah').closest('.col-md-6');
+        const gudangSelect = document.getElementById('id_gudang');
+        const wilayahSelect = document.getElementById('id_wilayah');
 
-        // sembunyikan dulu saat halaman dimuat
+        // sembunyikan dulu
+        gudangField.style.display = 'none';
         wilayahField.style.display = 'none';
 
-        // event listener ketika role berubah
         roleSelect.addEventListener('change', function() {
             const selectedRole = this.value;
 
-            // tampilkan hanya jika role = ADMIN_WILAYAH
-            if (selectedRole === 'ADMIN_WILAYAH') {
+            // reset dulu semuanya
+            gudangField.style.display = 'none';
+            wilayahField.style.display = 'none';
+            gudangSelect.required = false;
+            wilayahSelect.required = false;
+
+            // tampilkan sesuai role
+            if (selectedRole === 'ADMIN_GUDANG' || selectedRole === 'KEPALA_GUDANG') {
+                gudangField.style.display = 'block';
+                gudangSelect.required = true;
+            } else if (selectedRole === 'ADMIN_WILAYAH') {
                 wilayahField.style.display = 'block';
-                document.getElementById('id_wilayah').required = true;
-            } else {
-                wilayahField.style.display = 'none';
-                document.getElementById('id_wilayah').required = false;
-                document.getElementById('id_wilayah').value = ''; // reset nilai
+                wilayahSelect.required = true;
             }
         });
     });

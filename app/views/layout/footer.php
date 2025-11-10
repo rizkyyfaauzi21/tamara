@@ -11,24 +11,10 @@ $(document).ready(function() {
             placeholder: "-- Pilih Wilayah --",
             theme: 'bootstrap-5',
             allowClear: true,
-            
-            
+            width: '100%'
         });
 });
 });
 </script>
-<!-- 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const transSelect = document.getElementById('sel-trans-new');
-    if (transSelect) {
-        transSelect.addEventListener('change', function() {
-            console.log("✅ Event change jalan, value:", this.value);
-        });
-    } else {
-        console.warn("❌ #sel-trans-new tidak ditemukan di DOM!");
-    }
-});
-</script> -->
 </body>
 </html>
