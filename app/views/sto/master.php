@@ -314,15 +314,7 @@
               <option value="NOT_USED">NOT_USED</option>
             </select>
           </div>
-          <?php if ($role === 'KEPALA_GUDANG'): ?>
-            <div class="col-md-3">
-              <label class="form-label">Pilihan</label>
-              <select name="pilihan" id="edit-pilihan" class="form-control">
-                <option value="BELUM_DIPILIH">BELUM_DIPILIH</option>
-                <option value="DIPILIH">DIPILIH</option>
-              </select>
-            </div>
-          <?php endif; ?>
+        
 
           <!-- Upload tambahan di EDIT -->
           <div class="col-12">
@@ -502,8 +494,8 @@
           document.getElementById('edit-keterangan').value = s.keterangan ?? '';
           document.getElementById('edit-status').value = s.status;
 
-          const pilihanEl = document.getElementById('edit-pilihan');
-          if (pilihanEl) pilihanEl.value = s.pilihan;
+          // const pilihanEl = document.getElementById('edit-pilihan');
+          // if (pilihanEl) pilihanEl.value = s.pilihan;
 
 
           // render file existing
