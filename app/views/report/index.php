@@ -49,7 +49,7 @@ foreach ($stoList as $s) {
 
 
 
-<div class="container mt-4">
+<div class="container-fluid mt-5" style=" padding: 0 50px 50px 50px;">
     <a href="index.php?page=dashboard" class="btn btn-secondary mb-3">← Back</a>
     <h2>Laporan STO</h2>
 
@@ -63,7 +63,7 @@ foreach ($stoList as $s) {
     <?php endif; ?>
 
     <!-- FORM CREATE -->
-    <?php if ($role === 'ADMIN_GUDANG' || $role === 'KEPALA_GUDANG' || $role === 'SUPERADMIN'): ?>
+    <?php if ($role === 'KEPALA_GUDANG' || $role === 'SUPERADMIN'): ?>
         <form id="frm-create" method="POST" action="index.php?page=report_generate">
             <div class="row gy-3">
                 <div class="col-md-3">
@@ -80,13 +80,7 @@ foreach ($stoList as $s) {
                 </div>
                 <div class="col-md-3">
                     <label>Gudang</label>
-                    <!-- <select id="sel-gudang-new" name="gudang_id" class="form-control" required>
-                    <option value="">-- Pilih --</option>
-                    <?php foreach ($gudangs as $g): ?>
-                        <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_gudang']) ?></option>
-                    <?php endforeach; ?>
-                </select> -->
-                <input type="hidden" name="gudang_id" id="gudang_id" value="<?= $gudang_id ?>">
+                    <input type="hidden" name="gudang_id" id="gudang_id" value="<?= $gudang_id ?>">
                     <input
                         type="text"
                         name="gudang_nama"
@@ -119,14 +113,7 @@ foreach ($stoList as $s) {
                     <label>Tarif Lembur (Rp)</label>
                     <input id="fld-lembur-new" name="tarif_lembur" class="form-control" readonly>
                 </div>
-                <!-- <div class="col-md-4">
-                <label>Tarif Normal (Rp)</label>
-                <input id="fld-normal-new" name="tarif_normal" class="form-control" readonly>
-            </div>
-            <div class="col-md-4">
-                <label>Tarif Lembur (Rp)</label>
-                <input id="fld-lembur-new" name="tarif_lembur" class="form-control" readonly>
-            </div> -->
+
             </div>
 
             <hr>
@@ -163,8 +150,7 @@ foreach ($stoList as $s) {
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>#</th>
-                <th>ID</th>
+                <th>NO.</th>
                 <th>Bulan</th>
                 <th>Pupuk</th>
                 <th>Gudang</th>
@@ -178,7 +164,6 @@ foreach ($stoList as $s) {
             <?php if ($invoices): foreach ($invoices as $i => $inv): ?>
                     <tr>
                         <td><?= $i + 1 ?></td>
-                        <td><?= $inv['id'] ?></td>
                         <td><?= htmlspecialchars($inv['bulan']) ?></td>
                         <td><?= htmlspecialchars($inv['jenis_pupuk']) ?></td>
                         <td><?= htmlspecialchars($inv['nama_gudang']) ?></td>
@@ -188,10 +173,12 @@ foreach ($stoList as $s) {
                         <td class="d-flex gap-2">
                             <button type="button" class="btn btn-sm btn-primary btn-view"
                                 data-id="<?= $inv['id'] ?>">View</button>
-                            <button type="button" class="btn btn-sm btn-warning btn-edit"
-                                data-id="<?= $inv['id'] ?>">Edit</button>
-                            <a href="index.php?page=invoice_delete&id=<?= $inv['id'] ?>" class="btn btn-sm btn-danger"
-                                onclick="return confirm('Hapus invoice #<?= $inv['id'] ?>?')">Hapus</a>
+                            <?php if ($role === 'KEPALA_GUDANG' || $role === 'SUPERADMIN'): ?>
+                                <button type="button" class="btn btn-sm btn-warning btn-edit"
+                                    data-id="<?= $inv['id'] ?>">Edit</button>
+                                <a href="index.php?page=invoice_delete&id=<?= $inv['id'] ?>" class="btn btn-sm btn-danger"
+                                    onclick="return confirm('Hapus invoice #<?= $inv['id'] ?>?')">Hapus</a>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach;
@@ -202,6 +189,21 @@ foreach ($stoList as $s) {
             <?php endif; ?>
         </tbody>
     </table>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>Menampilkan <span id="count-showing">0</span> dari <span id="count-total">0</span> data</div>
+        <div>
+            <label class="me-2">Tampilkan</label>
+            <select id="rowsPerPage" class="form-select form-select-sm d-inline-block" style="width:80px;">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
+            <span>data per halaman</span>
+        </div>
+    </div>
+
 </div>
 
 
@@ -309,6 +311,8 @@ foreach ($stoList as $s) {
 <script>
     'use strict';
 
+
+
     document.addEventListener('DOMContentLoaded', function() {
         // Data dari PHP
         const stoData = <?= json_encode($stoDataPHP         ?? [], JSON_UNESCAPED_UNICODE) ?>;
@@ -317,6 +321,26 @@ foreach ($stoList as $s) {
         const invoiceLines = <?= json_encode($invoiceLines       ?? [], JSON_UNESCAPED_UNICODE) ?>;
         const invoiceLineDetails = <?= json_encode($invoiceLineDetails ?? [], JSON_UNESCAPED_UNICODE) ?>;
 
+        const tarifData = {
+            normal: <?= json_encode($tarif_normal) ?>,
+            lembur: <?= json_encode($tarif_lembur) ?>,
+        };
+        const selTransNew = document.getElementById('sel-trans-new');
+        if (selTransNew) {
+            selTransNew.addEventListener('change', function() {
+                const jenis = this.value;
+                const normalField = document.getElementById('fld-normal-new');
+                const lemburField = document.getElementById('fld-lembur-new');
+
+                if (jenis === 'BONGKAR' || jenis === 'MUAT') {
+                    normalField.value = tarifData.normal;
+                    lemburField.value = tarifData.lembur;
+                } else {
+                    normalField.value = '';
+                    lemburField.value = '';
+                }
+            });
+        }
         // === FILTER STO BERDASARKAN GUDANG & JENIS TRANSAKSI ===
         function getFilteredSTOOpts() {
             const selectedGudang = currentGudangId;
@@ -340,25 +364,6 @@ foreach ($stoList as $s) {
 
         console.log("currentGudangId:", currentGudangId);
         console.log("stoOpts:", stoOpts);
-
-        const tarifData = {
-            normal: <?= json_encode($tarif_normal) ?>,
-            lembur: <?= json_encode($tarif_lembur) ?>,
-        };
-
-        document.getElementById('sel-trans-new').addEventListener('change', function() {
-            const jenis = this.value;
-            const normalField = document.getElementById('fld-normal-new');
-            const lemburField = document.getElementById('fld-lembur-new');
-
-            if (jenis === 'BONGKAR' || jenis === 'MUAT') {
-                normalField.value = tarifData.normal;
-                lemburField.value = tarifData.lembur;
-            } else {
-                normalField.value = '';
-                lemburField.value = '';
-            }
-        });
 
         // Utils
         function buildSelectData(extraRows) {
@@ -458,8 +463,8 @@ foreach ($stoList as $s) {
 
 
         function bindTarifNew() {
-              const gudang = $('#gudang_id').val();
-    const jenis = $('#sel-trans-new').val();
+            const gudang = $('#gudang_id').val();
+            const jenis = $('#sel-trans-new').val();
 
             if (!gudang || !jenis) return;
 
@@ -495,17 +500,17 @@ foreach ($stoList as $s) {
 
 
         $('#tbl-sto-new tbody').empty();
-    $('#btn-add-new').click(() => {
-    const selectedGudang = $('#gudang_id').val(); // ✅ pakai hidden input
-    const selectedJenis = $('#sel-trans-new').val();
+        $('#btn-add-new').click(() => {
+            const selectedGudang = $('#gudang_id').val(); // ✅ pakai hidden input
+            const selectedJenis = $('#sel-trans-new').val();
 
-    if (!selectedGudang || !selectedJenis) {
-        alert('Silakan pilih Gudang dan Jenis Kegiatan terlebih dahulu!');
-        return;
-    }
+            if (!selectedGudang || !selectedJenis) {
+                alert('Silakan pilih Gudang dan Jenis Kegiatan terlebih dahulu!');
+                return;
+            }
 
-    addRowCreate($('#tbl-sto-new tbody'), buildSelectData([]));
-});
+            addRowCreate($('#tbl-sto-new tbody'), buildSelectData([]));
+        });
 
 
         // VIEW
@@ -688,27 +693,100 @@ foreach ($stoList as $s) {
     });
 </script>
 
+
 <script>
-    // console.log("currentGudangId:", currentGudangId);
-    // console.log("stoOpts:", stoOpts);
+    document.addEventListener("DOMContentLoaded", function() {
+        const rows = document.querySelectorAll("table.table-striped tbody tr");
+        const totalRows = rows.length;
+        const countShowing = document.getElementById("count-showing");
+        const countTotal = document.getElementById("count-total");
+        const rowsPerPageSelect = document.getElementById("rowsPerPage");
+        let rowsPerPage = parseInt(rowsPerPageSelect.value);
+        let totalPages = Math.ceil(totalRows / rowsPerPage);
+        let currentPage = 1;
+        let pagination; // biar bisa rebuild
 
-    // const tarifData = {
-    //     normal: <?= json_encode($tarif_normal) ?>,
-    //     lembur: <?= json_encode($tarif_lembur) ?>,
-    // };
+        countTotal.textContent = totalRows;
 
-    // document.getElementById('sel-trans-new').addEventListener('change', function() {
-    //     const jenis = this.value;
-    //     const normalField = document.getElementById('fld-normal-new');
-    //     const lemburField = document.getElementById('fld-lembur-new');
+        function showPage(page) {
+            currentPage = page;
+            const start = (page - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
 
-    //     if (jenis === 'BONGKAR' || jenis === 'MUAT') {
-    //         normalField.value = tarifData.normal;
-    //         lemburField.value = tarifData.lembur;
-    //     } else {
-    //         normalField.value = '';
-    //         lemburField.value = '';
-    //     }
-    // });
+            rows.forEach((row, index) => {
+                row.style.display = index >= start && index < end ? "" : "none";
+            });
+
+            // update info jumlah data
+            const showing = Math.min(end, totalRows);
+            countShowing.textContent = showing;
+
+            // aktifkan tombol aktif
+            document.querySelectorAll(".pagination .page-item").forEach(btn => btn.classList.remove("active"));
+            const activeBtn = document.querySelector(`.pagination .page-item[data-page="${page}"]`);
+            if (activeBtn) activeBtn.classList.add("active");
+
+            // disable tombol prev/next jika di batas
+            document.getElementById("prevPage").classList.toggle("disabled", currentPage === 1);
+            document.getElementById("nextPage").classList.toggle("disabled", currentPage === totalPages);
+        }
+
+        function buildPagination() {
+            if (pagination) pagination.remove(); // hapus pagination lama
+
+            totalPages = Math.ceil(totalRows / rowsPerPage);
+            pagination = document.createElement("ul");
+            pagination.className = "pagination justify-content-center mt-3";
+
+            // tombol prev
+            const prevLi = document.createElement("li");
+            prevLi.className = "page-item disabled";
+            prevLi.id = "prevPage";
+            prevLi.innerHTML = `<a class="page-link" href="#">← Prev</a>`;
+            pagination.appendChild(prevLi);
+
+            // tombol halaman
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement("li");
+                li.className = "page-item";
+                li.dataset.page = i;
+                li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                li.addEventListener("click", () => showPage(i));
+                pagination.appendChild(li);
+            }
+
+            // tombol next
+            const nextLi = document.createElement("li");
+            nextLi.className = "page-item";
+            nextLi.id = "nextPage";
+            nextLi.innerHTML = `<a class="page-link" href="#">Next →</a>`;
+            pagination.appendChild(nextLi);
+
+            // event prev/next
+            prevLi.addEventListener("click", e => {
+                e.preventDefault();
+                if (currentPage > 1) showPage(currentPage - 1);
+            });
+            nextLi.addEventListener("click", e => {
+                e.preventDefault();
+                if (currentPage < totalPages) showPage(currentPage + 1);
+            });
+
+            // tampilkan pagination di bawah tabel
+            const table = document.querySelector("table.table-striped");
+            table.insertAdjacentElement("afterend", pagination);
+
+            // tampilkan halaman pertama
+            showPage(1);
+        }
+
+        // event ubah jumlah data per halaman
+        rowsPerPageSelect.addEventListener("change", function() {
+            rowsPerPage = parseInt(this.value);
+            buildPagination();
+        });
+
+        // build pertama kali
+        buildPagination();
+    });
 </script>
-
