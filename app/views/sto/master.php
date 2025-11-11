@@ -178,7 +178,7 @@
     <table id="sto-table" class="table table-bordered align-middle">
       <thead>
         <tr>
-          <th>#</th>
+        <th>No.</th>
           <th>Nomor STO</th>
           <th>Tgl Terbit</th>
           <th>Gudang</th>

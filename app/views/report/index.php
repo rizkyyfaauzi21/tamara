@@ -239,12 +239,15 @@ foreach ($stoList as $s) {
                     </div>
                     <div class="col-md-3">
                         <label>Gudang</label>
-                        <select id="edit-gdg" name="gudang_id" class="form-control" required>
-                            <option value="">-- Pilih --</option>
-                            <?php foreach ($gudangs as $g): ?>
-                                <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_gudang']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <input type="hidden" name="gudang_id" id="gudang_id" value="<?= $gudang_id ?>">
+                    <input
+                        type="text"
+                        name="gudang_nama"
+                        id="edit-nama-gudang"
+                        class="form-control"
+                        placeholder="Nama Gudang"
+                        value="<?= htmlspecialchars($nama_gudang) ?: '-' ?>"
+                        readonly>
                     </div>
                     <div class="col-md-3">
                         <label>Jenis Transaksi</label>
