@@ -2,7 +2,7 @@
 // variabel yang dipakai di view ini (datang dari controller):
 // $gudangs, $stoList, $filesBySto, $filesBaseUrl
 ?>
-<div class="container-fluid mt-5" style="padding:0px 50px 50px 50px;" >
+<div class="container-fluid  mt-5" style="padding:0px 50px 50px 50px;" >
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Master STO</h2>
     <a href="index.php?page=dashboard" class="btn btn-secondary">Back</a>

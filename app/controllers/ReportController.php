@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $userId = (int) $_SESSION['user_id'];
+$role   = $_SESSION['role'];
 
 // Ambil data gudang user + tarif dari tabel gudang_tarif
 $stmt = $conn->prepare("
@@ -54,12 +55,46 @@ $stoList = $conn->query("
 ")->fetchAll(PDO::FETCH_ASSOC);
 
 // --- Invoice Header ---
-$invoices = $conn->query("
-  SELECT i.*, g.nama_gudang
-  FROM invoice i
-  JOIN gudang g ON i.gudang_id = g.id
-  ORDER BY i.created_at DESC
-")->fetchAll(PDO::FETCH_ASSOC);
+// if ($role === 'SUPERADMIN') {
+//   $invoiceQuery = "
+    // SELECT i.*, g.nama_gudang
+    // FROM invoice i
+    // JOIN gudang g ON i.gudang_id = g.id
+    // ORDER BY i.created_at DESC
+//   ";
+// } else
+if ($role === 'ADMIN_WILAYAH') {
+  $invoiceQuery = "
+    SELECT i.*, g.nama_gudang
+    FROM invoice i
+    JOIN gudang g ON i.gudang_id = g.id
+    WHERE i.gudang_id IN (
+      SELECT gw.id 
+      FROM user_admin_wilayah uaw
+      JOIN wilayah w ON w.id = uaw.id_wilayah
+      JOIN gudang gw ON gw.id_wilayah = w.id
+      WHERE uaw.id_user = " . intval($userId) . "
+    )
+    ORDER BY i.created_at DESC
+  ";
+} elseif ($role === 'KEPALA_GUDANG' || $role === 'ADMIN_GUDANG') {
+  $invoiceQuery = "
+    SELECT i.*, g.nama_gudang
+    FROM invoice i
+    JOIN gudang g ON i.gudang_id = g.id
+    WHERE i.gudang_id = " . intval($gudang_id) . "
+    ORDER BY i.created_at DESC
+  ";
+} else {
+  // Role lain hanya lihat invoice yang dia buat (jika ada kolom created_by)
+  $invoiceQuery = "
+    SELECT i.*, g.nama_gudang
+    FROM invoice i
+    JOIN gudang g ON i.gudang_id = g.id
+    ORDER BY i.created_at DESC
+  ";
+}
+$invoices = $conn->query($invoiceQuery)->fetchAll(PDO::FETCH_ASSOC);
 
 // --- Data untuk view / JS ---
 $invoiceData        = [];

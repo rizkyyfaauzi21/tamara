@@ -17,6 +17,79 @@ if (!is_dir($UPLOAD_DIR) || !is_writable($UPLOAD_DIR)) {
     $_SESSION['error'] = 'Folder upload tidak bisa ditulis: ' . $UPLOAD_DIR;
 }
 
+/* ------------ Helper: simpan files ke disk & DB untuk invoice ------------ */
+function normalize_upload_array(array $arr): array
+{
+    // pastikan selalu berupa array-of-files
+    if (!is_array($arr['name'])) { // fallback kalau name tanpa []
+        foreach (['name', 'type', 'tmp_name', 'error', 'size'] as $k) {
+            $arr[$k] = [$arr[$k]];
+        }
+    }
+    return $arr;
+}
+
+function save_invoice_files(PDO $conn, int $invoiceId, string $field, string $dir, array $allowedExt, int $maxBytes, array &$debugErrors): int
+{
+    if (empty($_FILES[$field])) return 0;
+
+    $files = normalize_upload_array($_FILES[$field]);
+    $saved = 0;
+
+    foreach ($files['name'] as $i => $origName) {
+        // skip kalau kosong
+        if (!$origName || trim($origName) === '') continue;
+
+        $err  = $files['error'][$i];
+        $tmp  = $files['tmp_name'][$i];
+        $size = (int)$files['size'][$i];
+
+        // cek error bawaan PHP
+        if ($err !== UPLOAD_ERR_OK) {
+            $debugErrors[] = "$origName: upload error code $err";
+            continue;
+        }
+
+        // batas ukuran
+        if ($size > $maxBytes) {
+            $debugErrors[] = "$origName: melebihi batas {$maxBytes} bytes";
+            continue;
+        }
+
+        // ekstensi
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowedExt, true)) {
+            $debugErrors[] = "$origName: ekstensi tidak diizinkan ($ext)";
+            continue;
+        }
+
+        // pastikan folder writable
+        if (!is_writable($dir)) {
+            $debugErrors[] = "$origName: folder upload tidak writable ($dir)";
+            continue;
+        }
+
+        // pindahkan
+        $stored = uniqid('inv_', true) . '.' . $ext;
+        if (!@move_uploaded_file($tmp, $dir . $stored)) {
+            $debugErrors[] = "$origName: gagal move_uploaded_file()";
+            continue;
+        }
+
+        // mime (opsional)
+        $mime = function_exists('mime_content_type') ? @mime_content_type($dir . $stored) : null;
+
+        // simpan DB
+        $ins = $conn->prepare("
+            INSERT INTO invoice_files (invoice_id, filename, stored_name, mime, size_bytes, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $ins->execute([$invoiceId, $origName, $stored, $mime, $size]);
+        $saved++;
+    }
+    return $saved;
+}
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php?page=login');
     exit;
@@ -88,7 +161,7 @@ if ($action === 'fetch') {
         $stmt->execute([$invId]);
         $inv = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        
+
         if ($role === 'ADMIN_WILAYAH') {
             $stmt = $conn->prepare("
         SELECT COUNT(*) 
@@ -104,7 +177,7 @@ if ($action === 'fetch') {
                 exit('Anda bukan admin wilayah untuk invoice ini.');
             }
         }
-        
+
         if (!$inv) {
             http_response_code(404);
             exit('Invoice tidak ditemukan');
@@ -129,6 +202,16 @@ if ($action === 'fetch') {
         $stmt->execute([$invId]);
         $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // ✅ Ambil file yang sudah diupload
+        $stmt = $conn->prepare("
+          SELECT `id`, `filename`, `stored_name`, `mime`, `size_bytes`, `created_at`
+          FROM `invoice_files`
+          WHERE `invoice_id` = ?
+          ORDER BY `created_at` ASC, `id` ASC
+        ");
+        $stmt->execute([$invId]);
+        $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         $current = $resolveCurrent($logs);
 
         // sinkron ke DB jika beda
@@ -140,6 +223,8 @@ if ($action === 'fetch') {
 
         // pass ke view
         $userIdView = $userId;
+        $invoiceFiles = $files ?? [];
+        $uploadUrl = $UPLOAD_URL; // pass URL untuk download file
         require __DIR__ . '/../views/scan/invoice_detail.php';
     } catch (Throwable $e) {
         http_response_code(500);
@@ -152,7 +237,7 @@ if ($action === 'fetch') {
 if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // Clear all output buffers
     while (ob_get_level()) ob_end_clean();
-    
+
     header('Content-Type: application/json; charset=utf-8');
 
     try {
@@ -183,9 +268,9 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $current = $resolveCurrent($logs);
-        
+
         error_log("Current role: $current");
-        
+
         if ($current !== $role) {
             echo json_encode(['success' => false, 'message' => 'Bukan giliran Anda untuk memutuskan. Current: ' . $current]);
             exit;
@@ -246,7 +331,6 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE `id` = ?");
             $upd->execute([$next, $note_admin_wilayah, $invId]);
             error_log("Updated ADMIN_WILAYAH note");
-            
         } elseif ($role === 'PERWAKILAN_PI') {
             $upd = $conn->prepare("UPDATE `invoice` 
                 SET `current_role` = ?, 
@@ -254,7 +338,6 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE `id` = ?");
             $upd->execute([$next, $note_perwakilan_pi, $invId]);
             error_log("Updated PERWAKILAN_PI note");
-            
         } elseif ($role === 'ADMIN_PCS') {
             $upd = $conn->prepare("UPDATE `invoice` 
                 SET `current_role` = ?, 
@@ -264,7 +347,6 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE `id` = ?");
             $upd->execute([$next, $no_soj, $no_mmj, $note_admin_pcs, $invId]);
             error_log("Updated ADMIN_PCS note and numbers");
-            
         } elseif ($role === 'KEUANGAN') {
             $upd = $conn->prepare("UPDATE `invoice` 
                 SET `current_role` = ?, 
@@ -272,7 +354,6 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE `id` = ?");
             $upd->execute([$next, $note_keuangan, $invId]);
             error_log("Updated KEUANGAN note");
-            
         } else {
             // Role lain atau SUPERADMIN
             $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
@@ -282,18 +363,32 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         error_log("Invoice updated successfully");
 
+        // ✅ Simpan file jika ada (khusus ADMIN_PCS)
+        $uploadErrors = [];
+        if ($role === 'ADMIN_PCS' && !empty($_FILES['files'])) {
+            $savedCount = save_invoice_files($conn, $invId, 'files', $UPLOAD_DIR, $ALLOWED_EXT, $MAX_BYTES, $uploadErrors);
+            error_log("Files saved: $savedCount");
+            if (!empty($uploadErrors)) {
+                error_log("Upload errors: " . implode(', ', $uploadErrors));
+            }
+        }
+
+        $message = 'Keputusan berhasil disimpan';
+        if (!empty($uploadErrors)) {
+            $message .= '. Peringatan: ' . implode(', ', $uploadErrors);
+        }
+
         echo json_encode([
-            'success' => true, 
+            'success' => true,
             'next' => $next,
-            'message' => 'Keputusan berhasil disimpan'
+            'message' => $message
         ]);
-        
     } catch (Throwable $e) {
         error_log("Error in decide action: " . $e->getMessage());
         error_log("Stack trace: " . $e->getTraceAsString());
-        
+
         echo json_encode([
-            'success' => false, 
+            'success' => false,
             'message' => 'Error: ' . $e->getMessage()
         ]);
     }
