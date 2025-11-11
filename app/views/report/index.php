@@ -695,98 +695,120 @@ foreach ($stoList as $s) {
 
 
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const rows = document.querySelectorAll("table.table-striped tbody tr");
-        const totalRows = rows.length;
-        const countShowing = document.getElementById("count-showing");
-        const countTotal = document.getElementById("count-total");
-        const rowsPerPageSelect = document.getElementById("rowsPerPage");
-        let rowsPerPage = parseInt(rowsPerPageSelect.value);
-        let totalPages = Math.ceil(totalRows / rowsPerPage);
-        let currentPage = 1;
-        let pagination; // biar bisa rebuild
+document.addEventListener("DOMContentLoaded", function() {
+  const table = document.querySelector("table.table-striped");
+  const rows = Array.from(table.querySelectorAll("tbody tr"));
+  const countShowing = document.getElementById("count-showing");
+  const countTotal = document.getElementById("count-total");
+  const rowsPerPageSelect = document.getElementById("rowsPerPage");
 
-        countTotal.textContent = totalRows;
+  // filter hanya baris data yang BUKAN empty state
+  const validRows = rows.filter(row => !row.textContent.includes("Belum ada invoice"));
+  let totalRows = validRows.length;
 
-        function showPage(page) {
-            currentPage = page;
-            const start = (page - 1) * rowsPerPage;
-            const end = start + rowsPerPage;
+  const paginationContainer = document.createElement("div");
+  paginationContainer.className = "d-flex justify-content-center";
+  let pagination;
 
-            rows.forEach((row, index) => {
-                row.style.display = index >= start && index < end ? "" : "none";
-            });
+  let rowsPerPage = parseInt(rowsPerPageSelect.value);
+  let totalPages = Math.ceil(totalRows / rowsPerPage);
+  let currentPage = 1;
 
-            // update info jumlah data
-            const showing = Math.min(end, totalRows);
-            countShowing.textContent = showing;
+  // update total data di label
+  countTotal.textContent = totalRows;
+  countShowing.textContent = totalRows === 0 ? 0 : Math.min(rowsPerPage, totalRows);
 
-            // aktifkan tombol aktif
-            document.querySelectorAll(".pagination .page-item").forEach(btn => btn.classList.remove("active"));
-            const activeBtn = document.querySelector(`.pagination .page-item[data-page="${page}"]`);
-            if (activeBtn) activeBtn.classList.add("active");
+  function showPage(page) {
+    currentPage = page;
+    const start = (page - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
 
-            // disable tombol prev/next jika di batas
-            document.getElementById("prevPage").classList.toggle("disabled", currentPage === 1);
-            document.getElementById("nextPage").classList.toggle("disabled", currentPage === totalPages);
-        }
-
-        function buildPagination() {
-            if (pagination) pagination.remove(); // hapus pagination lama
-
-            totalPages = Math.ceil(totalRows / rowsPerPage);
-            pagination = document.createElement("ul");
-            pagination.className = "pagination justify-content-center mt-3";
-
-            // tombol prev
-            const prevLi = document.createElement("li");
-            prevLi.className = "page-item disabled";
-            prevLi.id = "prevPage";
-            prevLi.innerHTML = `<a class="page-link" href="#">← Prev</a>`;
-            pagination.appendChild(prevLi);
-
-            // tombol halaman
-            for (let i = 1; i <= totalPages; i++) {
-                const li = document.createElement("li");
-                li.className = "page-item";
-                li.dataset.page = i;
-                li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
-                li.addEventListener("click", () => showPage(i));
-                pagination.appendChild(li);
-            }
-
-            // tombol next
-            const nextLi = document.createElement("li");
-            nextLi.className = "page-item";
-            nextLi.id = "nextPage";
-            nextLi.innerHTML = `<a class="page-link" href="#">Next →</a>`;
-            pagination.appendChild(nextLi);
-
-            // event prev/next
-            prevLi.addEventListener("click", e => {
-                e.preventDefault();
-                if (currentPage > 1) showPage(currentPage - 1);
-            });
-            nextLi.addEventListener("click", e => {
-                e.preventDefault();
-                if (currentPage < totalPages) showPage(currentPage + 1);
-            });
-
-            // tampilkan pagination di bawah tabel
-            const table = document.querySelector("table.table-striped");
-            table.insertAdjacentElement("afterend", pagination);
-
-            // tampilkan halaman pertama
-            showPage(1);
-        }
-
-        // event ubah jumlah data per halaman
-        rowsPerPageSelect.addEventListener("change", function() {
-            rowsPerPage = parseInt(this.value);
-            buildPagination();
-        });
-
-        // build pertama kali
-        buildPagination();
+    validRows.forEach((row, index) => {
+      row.style.display = index >= start && index < end ? "" : "none";
     });
+
+    // update label jumlah data
+    if (totalRows === 0) {
+      countShowing.textContent = 0;
+      countTotal.textContent = 0;
+    } else {
+      const showing = Math.min(end, totalRows);
+      countShowing.textContent = showing;
+      countTotal.textContent = totalRows;
+    }
+
+    // tombol aktif
+    document.querySelectorAll(".pagination .page-item").forEach(btn => btn.classList.remove("active"));
+    const activeBtn = document.querySelector(`.pagination .page-item[data-page="${page}"]`);
+    if (activeBtn) activeBtn.classList.add("active");
+
+    // disable tombol prev/next
+    const prev = document.getElementById("prevPage");
+    const next = document.getElementById("nextPage");
+    if (prev && next) {
+      prev.classList.toggle("disabled", currentPage === 1);
+      next.classList.toggle("disabled", currentPage === totalPages);
+    }
+  }
+
+  function buildPagination() {
+    if (pagination) pagination.remove();
+    pagination = document.createElement("ul");
+    pagination.className = "pagination justify-content-center mt-3";
+
+    totalPages = Math.ceil(totalRows / rowsPerPage);
+
+    // prev
+    const prevLi = document.createElement("li");
+    prevLi.className = "page-item disabled";
+    prevLi.id = "prevPage";
+    prevLi.innerHTML = `<a class="page-link" href="#">← Prev</a>`;
+    pagination.appendChild(prevLi);
+
+    // page number
+    for (let i = 1; i <= totalPages; i++) {
+      const li = document.createElement("li");
+      li.className = "page-item";
+      li.dataset.page = i;
+      li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+      li.addEventListener("click", () => showPage(i));
+      pagination.appendChild(li);
+    }
+
+    // next
+    const nextLi = document.createElement("li");
+    nextLi.className = "page-item";
+    nextLi.id = "nextPage";
+    nextLi.innerHTML = `<a class="page-link" href="#">Next →</a>`;
+    pagination.appendChild(nextLi);
+
+    // event prev/next
+    prevLi.addEventListener("click", e => {
+      e.preventDefault();
+      if (currentPage > 1) showPage(currentPage - 1);
+    });
+    nextLi.addEventListener("click", e => {
+      e.preventDefault();
+      if (currentPage < totalPages) showPage(currentPage + 1);
+    });
+
+    table.insertAdjacentElement("afterend", pagination);
+    showPage(1);
+  }
+
+  // event ubah jumlah data per halaman
+  rowsPerPageSelect.addEventListener("change", function() {
+    rowsPerPage = parseInt(this.value);
+    buildPagination();
+  });
+
+  // tampilkan pagination hanya jika ada data
+  if (totalRows > 0) {
+    buildPagination();
+  } else {
+    // sembunyikan pagination dan ubah label
+    countShowing.textContent = 0;
+    countTotal.textContent = 0;
+  }
+});
 </script>
