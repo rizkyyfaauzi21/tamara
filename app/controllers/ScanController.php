@@ -161,23 +161,27 @@ if ($action === 'fetch') {
         $stmt->execute([$invId]);
         $inv = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        
-        if ($role === 'ADMIN_WILAYAH') {
-            $stmt = $conn->prepare("
-        SELECT COUNT(*) 
-        FROM user_admin_wilayah uaw
-        JOIN gudang g ON g.id_wilayah = uaw.id_wilayah
-        WHERE uaw.id_user = ? AND g.id = ?
-    ");
-            $stmt->execute([$userId, $inv['gudang_id']]);
-            $allowed = $stmt->fetchColumn();
 
-            if (!$allowed) {
-                http_response_code(403);
-                exit('Anda bukan admin wilayah untuk invoice ini.');
-            }
-        }
-        
+      if ($role === 'ADMIN_WILAYAH') {
+    $stmt = $conn->prepare("
+        SELECT COUNT(*)
+        FROM user_admin_wilayah
+        WHERE id_user = ?
+          AND id_wilayah = (
+              SELECT id_wilayah FROM gudang WHERE id = ?
+          )
+    ");
+    $stmt->execute([$userId, $inv['gudang_id']]);
+    $allowed = $stmt->fetchColumn();
+
+    if (!$allowed) {
+        http_response_code(403);
+        exit('Anda bukan admin wilayah untuk invoice ini.');
+    }
+}
+
+
+
         if (!$inv) {
             http_response_code(404);
             exit('Invoice tidak ditemukan');
@@ -202,6 +206,16 @@ if ($action === 'fetch') {
         $stmt->execute([$invId]);
         $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // ✅ Ambil file yang sudah diupload
+        $stmt = $conn->prepare("
+          SELECT `id`, `filename`, `stored_name`, `mime`, `size_bytes`, `created_at`
+          FROM `invoice_files`
+          WHERE `invoice_id` = ?
+          ORDER BY `created_at` ASC, `id` ASC
+        ");
+        $stmt->execute([$invId]);
+        $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         $current = $resolveCurrent($logs);
 
         // sinkron ke DB jika beda
@@ -213,6 +227,8 @@ if ($action === 'fetch') {
 
         // pass ke view
         $userIdView = $userId;
+        $invoiceFiles = $files ?? [];
+        $uploadUrl = $UPLOAD_URL; // pass URL untuk download file
         require __DIR__ . '/../views/scan/invoice_detail.php';
     } catch (Throwable $e) {
         http_response_code(500);

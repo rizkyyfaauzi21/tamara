@@ -157,6 +157,7 @@ foreach ($stoList as $s) {
                 <th>Transaksi</th>
                 <th>Uraian Pekerjaan</th>
                 <th>Dibuat Pada</th>
+                <th>Status</th>
                 <th>Aksi</th>
             </tr>
         </thead>
@@ -170,16 +171,23 @@ foreach ($stoList as $s) {
                         <td><?= htmlspecialchars($inv['jenis_transaksi']) ?></td>
                         <td><?= htmlspecialchars($inv['uraian_pekerjaan']) ?></td>
                         <td><?= $inv['created_at'] ?></td>
+                        <td><?= htmlspecialchars($inv['current_role']) ?></td>
                         <td class="d-flex gap-2">
                             <button type="button" class="btn btn-sm btn-primary btn-view"
                                 data-id="<?= $inv['id'] ?>">View</button>
-                            <?php if ($role === 'KEPALA_GUDANG' || $role === 'SUPERADMIN'): ?>
+
+                            <?php if (
+                                $role === 'SUPERADMIN' ||
+                                ($role === 'KEPALA_GUDANG' && $inv['current_role'] === 'KEPALA_GUDANG')
+                            ): ?>
                                 <button type="button" class="btn btn-sm btn-warning btn-edit"
                                     data-id="<?= $inv['id'] ?>">Edit</button>
-                                <a href="index.php?page=invoice_delete&id=<?= $inv['id'] ?>" class="btn btn-sm btn-danger"
+                                <a href="index.php?page=invoice_delete&id=<?= $inv['id'] ?>"
+                                    class="btn btn-sm btn-danger"
                                     onclick="return confirm('Hapus invoice #<?= $inv['id'] ?>?')">Hapus</a>
                             <?php endif; ?>
                         </td>
+
                     </tr>
                 <?php endforeach;
             else: ?>
@@ -240,14 +248,14 @@ foreach ($stoList as $s) {
                     <div class="col-md-3">
                         <label>Gudang</label>
                         <input type="hidden" name="gudang_id" id="gudang_id" value="<?= $gudang_id ?>">
-                    <input
-                        type="text"
-                        name="gudang_nama"
-                        id="edit-nama-gudang"
-                        class="form-control"
-                        placeholder="Nama Gudang"
-                        value="<?= htmlspecialchars($nama_gudang) ?: '-' ?>"
-                        readonly>
+                        <input
+                            type="text"
+                            name="gudang_nama"
+                            id="edit-nama-gudang"
+                            class="form-control"
+                            placeholder="Nama Gudang"
+                            value="<?= htmlspecialchars($nama_gudang) ?: '-' ?>"
+                            readonly>
                     </div>
                     <div class="col-md-3">
                         <label>Jenis Transaksi</label>
@@ -698,120 +706,120 @@ foreach ($stoList as $s) {
 
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-  const table = document.querySelector("table.table-striped");
-  const rows = Array.from(table.querySelectorAll("tbody tr"));
-  const countShowing = document.getElementById("count-showing");
-  const countTotal = document.getElementById("count-total");
-  const rowsPerPageSelect = document.getElementById("rowsPerPage");
+    document.addEventListener("DOMContentLoaded", function() {
+        const table = document.querySelector("table.table-striped");
+        const rows = Array.from(table.querySelectorAll("tbody tr"));
+        const countShowing = document.getElementById("count-showing");
+        const countTotal = document.getElementById("count-total");
+        const rowsPerPageSelect = document.getElementById("rowsPerPage");
 
-  // filter hanya baris data yang BUKAN empty state
-  const validRows = rows.filter(row => !row.textContent.includes("Belum ada invoice"));
-  let totalRows = validRows.length;
+        // filter hanya baris data yang BUKAN empty state
+        const validRows = rows.filter(row => !row.textContent.includes("Belum ada invoice"));
+        let totalRows = validRows.length;
 
-  const paginationContainer = document.createElement("div");
-  paginationContainer.className = "d-flex justify-content-center";
-  let pagination;
+        const paginationContainer = document.createElement("div");
+        paginationContainer.className = "d-flex justify-content-center";
+        let pagination;
 
-  let rowsPerPage = parseInt(rowsPerPageSelect.value);
-  let totalPages = Math.ceil(totalRows / rowsPerPage);
-  let currentPage = 1;
+        let rowsPerPage = parseInt(rowsPerPageSelect.value);
+        let totalPages = Math.ceil(totalRows / rowsPerPage);
+        let currentPage = 1;
 
-  // update total data di label
-  countTotal.textContent = totalRows;
-  countShowing.textContent = totalRows === 0 ? 0 : Math.min(rowsPerPage, totalRows);
+        // update total data di label
+        countTotal.textContent = totalRows;
+        countShowing.textContent = totalRows === 0 ? 0 : Math.min(rowsPerPage, totalRows);
 
-  function showPage(page) {
-    currentPage = page;
-    const start = (page - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
+        function showPage(page) {
+            currentPage = page;
+            const start = (page - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
 
-    validRows.forEach((row, index) => {
-      row.style.display = index >= start && index < end ? "" : "none";
+            validRows.forEach((row, index) => {
+                row.style.display = index >= start && index < end ? "" : "none";
+            });
+
+            // update label jumlah data
+            if (totalRows === 0) {
+                countShowing.textContent = 0;
+                countTotal.textContent = 0;
+            } else {
+                const showing = Math.min(end, totalRows);
+                countShowing.textContent = showing;
+                countTotal.textContent = totalRows;
+            }
+
+            // tombol aktif
+            document.querySelectorAll(".pagination .page-item").forEach(btn => btn.classList.remove("active"));
+            const activeBtn = document.querySelector(`.pagination .page-item[data-page="${page}"]`);
+            if (activeBtn) activeBtn.classList.add("active");
+
+            // disable tombol prev/next
+            const prev = document.getElementById("prevPage");
+            const next = document.getElementById("nextPage");
+            if (prev && next) {
+                prev.classList.toggle("disabled", currentPage === 1);
+                next.classList.toggle("disabled", currentPage === totalPages);
+            }
+        }
+
+        function buildPagination() {
+            if (pagination) pagination.remove();
+            pagination = document.createElement("ul");
+            pagination.className = "pagination justify-content-center mt-3";
+
+            totalPages = Math.ceil(totalRows / rowsPerPage);
+
+            // prev
+            const prevLi = document.createElement("li");
+            prevLi.className = "page-item disabled";
+            prevLi.id = "prevPage";
+            prevLi.innerHTML = `<a class="page-link" href="#">← Prev</a>`;
+            pagination.appendChild(prevLi);
+
+            // page number
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement("li");
+                li.className = "page-item";
+                li.dataset.page = i;
+                li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                li.addEventListener("click", () => showPage(i));
+                pagination.appendChild(li);
+            }
+
+            // next
+            const nextLi = document.createElement("li");
+            nextLi.className = "page-item";
+            nextLi.id = "nextPage";
+            nextLi.innerHTML = `<a class="page-link" href="#">Next →</a>`;
+            pagination.appendChild(nextLi);
+
+            // event prev/next
+            prevLi.addEventListener("click", e => {
+                e.preventDefault();
+                if (currentPage > 1) showPage(currentPage - 1);
+            });
+            nextLi.addEventListener("click", e => {
+                e.preventDefault();
+                if (currentPage < totalPages) showPage(currentPage + 1);
+            });
+
+            table.insertAdjacentElement("afterend", pagination);
+            showPage(1);
+        }
+
+        // event ubah jumlah data per halaman
+        rowsPerPageSelect.addEventListener("change", function() {
+            rowsPerPage = parseInt(this.value);
+            buildPagination();
+        });
+
+        // tampilkan pagination hanya jika ada data
+        if (totalRows > 0) {
+            buildPagination();
+        } else {
+            // sembunyikan pagination dan ubah label
+            countShowing.textContent = 0;
+            countTotal.textContent = 0;
+        }
     });
-
-    // update label jumlah data
-    if (totalRows === 0) {
-      countShowing.textContent = 0;
-      countTotal.textContent = 0;
-    } else {
-      const showing = Math.min(end, totalRows);
-      countShowing.textContent = showing;
-      countTotal.textContent = totalRows;
-    }
-
-    // tombol aktif
-    document.querySelectorAll(".pagination .page-item").forEach(btn => btn.classList.remove("active"));
-    const activeBtn = document.querySelector(`.pagination .page-item[data-page="${page}"]`);
-    if (activeBtn) activeBtn.classList.add("active");
-
-    // disable tombol prev/next
-    const prev = document.getElementById("prevPage");
-    const next = document.getElementById("nextPage");
-    if (prev && next) {
-      prev.classList.toggle("disabled", currentPage === 1);
-      next.classList.toggle("disabled", currentPage === totalPages);
-    }
-  }
-
-  function buildPagination() {
-    if (pagination) pagination.remove();
-    pagination = document.createElement("ul");
-    pagination.className = "pagination justify-content-center mt-3";
-
-    totalPages = Math.ceil(totalRows / rowsPerPage);
-
-    // prev
-    const prevLi = document.createElement("li");
-    prevLi.className = "page-item disabled";
-    prevLi.id = "prevPage";
-    prevLi.innerHTML = `<a class="page-link" href="#">← Prev</a>`;
-    pagination.appendChild(prevLi);
-
-    // page number
-    for (let i = 1; i <= totalPages; i++) {
-      const li = document.createElement("li");
-      li.className = "page-item";
-      li.dataset.page = i;
-      li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
-      li.addEventListener("click", () => showPage(i));
-      pagination.appendChild(li);
-    }
-
-    // next
-    const nextLi = document.createElement("li");
-    nextLi.className = "page-item";
-    nextLi.id = "nextPage";
-    nextLi.innerHTML = `<a class="page-link" href="#">Next →</a>`;
-    pagination.appendChild(nextLi);
-
-    // event prev/next
-    prevLi.addEventListener("click", e => {
-      e.preventDefault();
-      if (currentPage > 1) showPage(currentPage - 1);
-    });
-    nextLi.addEventListener("click", e => {
-      e.preventDefault();
-      if (currentPage < totalPages) showPage(currentPage + 1);
-    });
-
-    table.insertAdjacentElement("afterend", pagination);
-    showPage(1);
-  }
-
-  // event ubah jumlah data per halaman
-  rowsPerPageSelect.addEventListener("change", function() {
-    rowsPerPage = parseInt(this.value);
-    buildPagination();
-  });
-
-  // tampilkan pagination hanya jika ada data
-  if (totalRows > 0) {
-    buildPagination();
-  } else {
-    // sembunyikan pagination dan ubah label
-    countShowing.textContent = 0;
-    countTotal.textContent = 0;
-  }
-});
 </script>
