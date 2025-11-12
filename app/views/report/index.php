@@ -353,32 +353,37 @@ foreach ($stoList as $s) {
             });
         }
         // === FILTER STO BERDASARKAN GUDANG & JENIS TRANSAKSI ===
-        function getFilteredSTOOpts() {
-            const selectedGudang = currentGudangId;
-            const selectedJenis = $('#sel-trans-new').val();
+        function getFilteredSTOOpts(context = 'create') {
+            let selectedGudang, selectedJenis;
 
-            console.log("Filter STO => Gudang:", selectedGudang, "Jenis:", selectedJenis);
-
-            if (!selectedGudang || !selectedJenis) {
-                console.log("Belum lengkap, return []");
-                return [];
+            if (context === 'edit') {
+                selectedGudang = $('#edit-gdg').val() || currentGudangId;
+                selectedJenis = $('#edit-trans').val();
+            } else {
+                selectedGudang = $('#gudang_id').val() || currentGudangId;
+                selectedJenis = $('#sel-trans-new').val();
             }
 
-            const hasil = stoOpts.filter(opt => {
-                return String(opt.gudang_id) === String(selectedGudang) &&
-                    opt.jenis_transaksi === selectedJenis;
-            });
+            console.log(`Filter STO (${context}) => Gudang:`, selectedGudang, "Jenis:", selectedJenis);
+
+            if (!selectedGudang || !selectedJenis) return [];
+
+            const hasil = stoOpts.filter(opt =>
+                String(opt.gudang_id) === String(selectedGudang) &&
+                opt.jenis_transaksi === selectedJenis
+            );
 
             console.log("Hasil filter STO:", hasil);
             return hasil;
         }
 
+
         console.log("currentGudangId:", currentGudangId);
         console.log("stoOpts:", stoOpts);
 
         // Utils
-        function buildSelectData(extraRows) {
-            const filtered = getFilteredSTOOpts();
+        function buildSelectData(extraRows, context = 'create') {
+            const filtered = getFilteredSTOOpts(context);
             const base = filtered.slice();
             const has = new Set(base.map(x => x.id));
             (extraRows || []).forEach(r => {
@@ -669,7 +674,7 @@ foreach ($stoList as $s) {
 
             const $tb = $('#tbl-sto-edit tbody');
             $tb.empty();
-            const baseData = buildSelectData(detail);
+            const baseData = buildSelectData(detail, 'edit');
 
             if (detail.length) {
                 detail.forEach(d => addRowEdit($tb, baseData, d.id, d));
