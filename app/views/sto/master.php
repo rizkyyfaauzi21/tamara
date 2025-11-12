@@ -220,16 +220,28 @@
               <a href="?page=master_sto&delete=<?= $s['id'] ?>" class="btn btn-sm btn-danger"
                  onclick="return confirm('Hapus STO ini beserta lampiran?')">Hapus</a>
             </td>
-            <td>
+           <td>
               <?php if ($s['status'] === 'NOT_USED'): ?>
                 <?php if ($s['pilihan'] === 'DIPILIH'): ?>
-                  <button class="btn btn-sm btn-success toggle-pilih" data-id="<?= $s['id'] ?>" data-next="BELUM_DIPILIH">
-                    Dipilih
-                  </button>
+                  <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPERADMIN'): ?>
+                    <button class="btn btn-sm btn-success toggle-pilih" 
+                            data-id="<?= $s['id'] ?>" 
+                            data-next="BELUM_DIPILIH">
+                      Dipilih
+                    </button>
+                  <?php else: ?>
+                    <span class="badge bg-success">Dipilih</span>
+                  <?php endif; ?>
                 <?php else: ?>
-                  <button class="btn btn-sm btn-outline-primary toggle-pilih" data-id="<?= $s['id'] ?>" data-next="DIPILIH">
-                    Belum Dipilih
-                  </button>
+                  <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPERADMIN'): ?>
+                    <button class="btn btn-sm btn-outline-primary toggle-pilih" 
+                            data-id="<?= $s['id'] ?>" 
+                            data-next="DIPILIH">
+                      Belum Dipilih
+                    </button>
+                  <?php else: ?>
+                    <span class="badge bg-outline-primary text-primary border border-primary">Belum Dipilih</span>
+                  <?php endif; ?>
                 <?php endif; ?>
               <?php else: ?>
                 <span class="badge bg-secondary">Sudah Laporan</span>
@@ -240,7 +252,7 @@
       <?php endif; ?>
     </tbody>
   </table>
-  <!-- ================= Kontrol Pagination ================= -->
+    <!-- ================= Kontrol Pagination ================= -->
     <div class="d-flex justify-content-between align-items-center mb-2">
         <div>Menampilkan <span id="count-showing">0</span> dari <span id="count-total">0</span> data</div>
         <div>
@@ -254,19 +266,6 @@
             <span>data per halaman</span>
         </div>
     </div>
-<!-- <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-  <small>Menampilkan <span id="count-showing">0</span> dari <span id="count-total">0</span> data</small>
-  <div>
-    <label class="me-2">Tampilkan:</label>
-    <select id="rowsPerPage" class="form-select form-select-sm d-inline-block" style="width:auto;">
-      <option value="5">5</option>
-      <option value="10" selected>10</option>
-      <option value="25">25</option>
-      <option value="50">50</option>
-    </select>
-  </div>
-</div>
-<div id="pagination-container" class="d-flex justify-content-center mt-3"></div> -->
 </div>
 
 
