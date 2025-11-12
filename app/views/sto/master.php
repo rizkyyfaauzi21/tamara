@@ -173,29 +173,32 @@
     </div>
   </div>
 
-  <!-- ================= 3) Tabel Master ================= -->
-  <div class="table-responsive">
-    <table id="sto-table" class="table table-bordered align-middle">
-      <thead>
-        <tr>
+ <!-- ================= 3) Tabel Master ================= -->
+<div class="table-responsive">
+  <table id="sto-table" class="table table-bordered align-middle table-striped">
+    <thead>
+      <tr>
         <th>No.</th>
-          <th>Nomor STO</th>
-          <th>Tgl Terbit</th>
-          <th>Gudang</th>
-          <th>Transaksi</th>
-          <th>Transportir</th>
-          <th>Normal</th>
-          <th>Lembur</th>
-          <th>Jumlah</th>
-          <th>Status</th>
-          <th>Lampiran</th>
-          <th>Keterangan</th>
-          <th>Created</th>
-          <th>Aksi</th>
-          <th>Pilih Nomor STO</th>
-        </tr>
-      </thead>
-      <tbody>
+        <th>Nomor STO</th>
+        <th>Tgl Terbit</th>
+        <th>Gudang</th>
+        <th>Transaksi</th>
+        <th>Transportir</th>
+        <th>Normal</th>
+        <th>Lembur</th>
+        <th>Jumlah</th>
+        <th>Status</th>
+        <th>Lampiran</th>
+        <th>Keterangan</th>
+        <th>Created</th>
+        <th>Aksi</th>
+        <th>Pilih Nomor STO</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php if (empty($stoList)): ?>
+        <tr><td colspan="15" class="text-center text-muted">Belum ada STO</td></tr>
+      <?php else: ?>
         <?php foreach ($stoList as $i => $s): ?>
           <?php $fcount = isset($filesBySto[$s['id']]) ? count($filesBySto[$s['id']]) : 0; ?>
           <tr>
@@ -209,38 +212,24 @@
             <td><?= number_format($s['tonase_lembur'], 2) ?></td>
             <td><?= number_format($s['jumlah'], 2) ?></td>
             <td><?= htmlspecialchars($s['status']) ?></td>
-            <td>
-              <?php if ($fcount): ?>
-                <span class="badge bg-info"><?= $fcount ?> file</span>
-              <?php else: ?>
-                <span class="text-muted">—</span>
-              <?php endif; ?>
-            </td>
+            <td><?= $fcount ? "<span class='badge bg-info'>$fcount file</span>" : "<span class='text-muted'>—</span>" ?></td>
             <td><?= htmlspecialchars($s['keterangan'] ?? '') ?></td>
             <td><?= htmlspecialchars($s['created_at']) ?></td>
             <td class="text-nowrap">
-              <button data-id="<?= $s['id'] ?>" class="btn btn-sm btn-warning btn-edit">Detail &amp; Edit</button>
+              <button data-id="<?= $s['id'] ?>" class="btn btn-sm btn-warning btn-edit">Detail & Edit</button>
               <a href="?page=master_sto&delete=<?= $s['id'] ?>" class="btn btn-sm btn-danger"
-                onclick="return confirm('Hapus STO ini beserta lampiran?')">Hapus</a>
+                 onclick="return confirm('Hapus STO ini beserta lampiran?')">Hapus</a>
             </td>
             <td>
               <?php if ($s['status'] === 'NOT_USED'): ?>
                 <?php if ($s['pilihan'] === 'DIPILIH'): ?>
-                  <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPERADMIN'): ?>
-                    <button class="btn btn-sm btn-success toggle-pilih" data-id="<?= $s['id'] ?>" data-next="BELUM_DIPILIH">
-                      Dipilih
-                    </button>
-                  <?php else: ?>
-                    <span class="badge bg-success">Dipilih</span>
-                  <?php endif; ?>
+                  <button class="btn btn-sm btn-success toggle-pilih" data-id="<?= $s['id'] ?>" data-next="BELUM_DIPILIH">
+                    Dipilih
+                  </button>
                 <?php else: ?>
-                  <?php if ($_SESSION['role'] === 'KEPALA_GUDANG' || $_SESSION['role'] === 'SUPERADMIN'): ?>
-                    <button class="btn btn-sm btn-outline-primary toggle-pilih" data-id="<?= $s['id'] ?>" data-next="DIPILIH">
-                      Belum Dipilih
-                    </button>
-                  <?php else: ?>
-                    <span class="badge bg-outline-primary text-primary border border-primary">Belum Dipilih</span>
-                  <?php endif; ?>
+                  <button class="btn btn-sm btn-outline-primary toggle-pilih" data-id="<?= $s['id'] ?>" data-next="DIPILIH">
+                    Belum Dipilih
+                  </button>
                 <?php endif; ?>
               <?php else: ?>
                 <span class="badge bg-secondary">Sudah Laporan</span>
@@ -248,10 +237,38 @@
             </td>
           </tr>
         <?php endforeach; ?>
-      </tbody>
-    </table>
+      <?php endif; ?>
+    </tbody>
+  </table>
+  <!-- ================= Kontrol Pagination ================= -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>Menampilkan <span id="count-showing">0</span> dari <span id="count-total">0</span> data</div>
+        <div>
+            <label class="me-2">Tampilkan</label>
+            <select id="rowsPerPage" class="form-select form-select-sm d-inline-block" style="width:80px;">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
+            <span>data per halaman</span>
+        </div>
+    </div>
+<!-- <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+  <small>Menampilkan <span id="count-showing">0</span> dari <span id="count-total">0</span> data</small>
+  <div>
+    <label class="me-2">Tampilkan:</label>
+    <select id="rowsPerPage" class="form-select form-select-sm d-inline-block" style="width:auto;">
+      <option value="5">5</option>
+      <option value="10" selected>10</option>
+      <option value="25">25</option>
+      <option value="50">50</option>
+    </select>
   </div>
 </div>
+<div id="pagination-container" class="d-flex justify-content-center mt-3"></div> -->
+</div>
+
 
 <!-- ================= 4) Modal Edit ================= -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
@@ -560,5 +577,120 @@
       });
     });
 
+    // ========= Pagination Client-Side =========
+    const table = document.querySelector("table.table-striped");
+    const rows = Array.from(table.querySelectorAll("tbody tr"));
+    const countShowing = document.getElementById("count-showing");
+    const countTotal = document.getElementById("count-total");
+    const rowsPerPageSelect = document.getElementById("rowsPerPage");
+
+    // filter hanya baris data yang BUKAN empty state
+    const validRows = rows.filter(row => !row.textContent.includes("Belum ada invoice"));
+    let totalRows = validRows.length;
+
+    const paginationContainer = document.createElement("div");
+    paginationContainer.className = "d-flex justify-content-center";
+    let pagination;
+
+    let rowsPerPage = parseInt(rowsPerPageSelect.value);
+    let totalPages = Math.ceil(totalRows / rowsPerPage);
+    let currentPage = 1;
+
+    // update total data di label
+    countTotal.textContent = totalRows;
+    countShowing.textContent = totalRows === 0 ? 0 : Math.min(rowsPerPage, totalRows);
+
+    function showPage(page) {
+      currentPage = page;
+      const start = (page - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+
+      validRows.forEach((row, index) => {
+        row.style.display = index >= start && index < end ? "" : "none";
+      });
+
+      // update label jumlah data
+      if (totalRows === 0) {
+        countShowing.textContent = 0;
+        countTotal.textContent = 0;
+      } else {
+          const showing = Math.min(end, totalRows);
+          countShowing.textContent = showing;
+          countTotal.textContent = totalRows;
+      }
+
+      // tombol aktif
+      document.querySelectorAll(".pagination .page-item").forEach(btn => btn.classList.remove("active"));
+        const activeBtn = document.querySelector(`.pagination .page-item[data-page="${page}"]`);
+        if (activeBtn) activeBtn.classList.add("active");
+
+        // disable tombol prev/next
+        const prev = document.getElementById("prevPage");
+        const next = document.getElementById("nextPage");
+        if (prev && next) {
+            prev.classList.toggle("disabled", currentPage === 1);
+            next.classList.toggle("disabled", currentPage === totalPages);
+          }
+        }
+
+        function buildPagination() {
+            if (pagination) pagination.remove();
+            pagination = document.createElement("ul");
+            pagination.className = "pagination justify-content-center mt-3";
+
+            totalPages = Math.ceil(totalRows / rowsPerPage);
+
+            // prev
+            const prevLi = document.createElement("li");
+            prevLi.className = "page-item disabled";
+            prevLi.id = "prevPage";
+            prevLi.innerHTML = `<a class="page-link" href="#">← Prev</a>`;
+            pagination.appendChild(prevLi);
+
+            // page number
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement("li");
+                li.className = "page-item";
+                li.dataset.page = i;
+                li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                li.addEventListener("click", () => showPage(i));
+                pagination.appendChild(li);
+            }
+
+            // next
+            const nextLi = document.createElement("li");
+            nextLi.className = "page-item";
+            nextLi.id = "nextPage";
+            nextLi.innerHTML = `<a class="page-link" href="#">Next →</a>`;
+            pagination.appendChild(nextLi);
+
+            // event prev/next
+            prevLi.addEventListener("click", e => {
+                e.preventDefault();
+                if (currentPage > 1) showPage(currentPage - 1);
+            });
+            nextLi.addEventListener("click", e => {
+                e.preventDefault();
+                if (currentPage < totalPages) showPage(currentPage + 1);
+            });
+
+            table.insertAdjacentElement("afterend", pagination);
+            showPage(1);
+        }
+
+        // event ubah jumlah data per halaman
+        rowsPerPageSelect.addEventListener("change", function() {
+            rowsPerPage = parseInt(this.value);
+            buildPagination();
+        });
+
+        // tampilkan pagination hanya jika ada data
+        if (totalRows > 0) {
+            buildPagination();
+        } else {
+            // sembunyikan pagination dan ubah label
+            countShowing.textContent = 0;
+            countTotal.textContent = 0;
+        }
   });
 </script>
