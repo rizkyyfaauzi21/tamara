@@ -53,7 +53,7 @@ function onFrame(result, err) {
     lastHitTs = now;
     busy = true;
 
-    statusElem.textContent = `QR terdeteksi:`;
+    statusElem.textContent = `QR terdeteksi: ${text}`;
 
     // extract id (supports URL with ?id=14 or plain "14")
     const m = text.match(/[\?&]id=(\d+)/);
@@ -74,16 +74,17 @@ function loadInvoiceDetail(id) {
             return res.text();
         })
         .then(html => {
-            console.log("HTML invoice detail:", html);
+            console.log("✅ HTML invoice detail loaded");
             detailDiv.innerHTML = html;
-            attachDecisionHandlers(); // panggil JS validasi dari invoice_detail.php
+            attachDecisionHandlers();
+            attachCloseReactiveHandlers();
             statusElem.textContent = 'Arahkan kamera ke QR code invoice';
             busy = false;
         })
         .catch(err => {
             detailDiv.innerHTML = `<div class="alert alert-warning">
-        Tagihan ini tidak dapat diakses karena tidak sesuai dengan wilayah Anda.
-      </div>`;
+                Tagihan ini tidak dapat diakses karena tidak sesuai dengan wilayah Anda.
+            </div>`;
             setTimeout(() => {
                 detailDiv.innerHTML = '';
                 statusElem.textContent = 'Arahkan kamera ke QR code invoice';
@@ -92,7 +93,6 @@ function loadInvoiceDetail(id) {
             }, 1500);
         });
 }
-
 
 function attachDecisionHandlers() {
     console.log("🔗 attachDecisionHandlers() aktif");
@@ -130,10 +130,23 @@ function attachDecisionHandlers() {
                 }
             }
 
+            // ✅ Validasi catatan untuk REJECT dari KEUANGAN (terutama saat REACTIVE)
+            if (role === "KEUANGAN" && mode === "reject") {
+                if (!note_value) {
+                    alert("⚠️ Harap isi catatan revisi sebelum melakukan reject!");
+                    return;
+                }
+            }
+
             // Konfirmasi
-            const confirmMsg = mode === 'approve' ?
+            let confirmMsg = mode === 'approve' ?
                 'Apakah Anda yakin ingin APPROVE invoice ini?' :
                 'Apakah Anda yakin ingin REJECT invoice ini?';
+            
+            // Pesan khusus untuk KEUANGAN REJECT (revisi)
+            if (role === "KEUANGAN" && mode === "reject") {
+                confirmMsg = 'Invoice akan dikirim ke ADMIN PCS untuk revisi. Lanjutkan?';
+            }
 
             if (!confirm(confirmMsg)) {
                 return;
@@ -192,22 +205,22 @@ function attachDecisionHandlers() {
 
                     if (mode === 'reject') {
                         detailDiv.innerHTML = `<div class="alert alert-warning">
-            <strong>✓ Dokumen dikirim kembali untuk revisi.</strong>
-            ${note_value ? '<br><small>Catatan: ' + note_value + '</small>' : ''}
-          </div>`;
+                            <strong>✓ Invoice dikirim untuk revisi ke ${js.next || 'role sebelumnya'}.</strong>
+                            ${note_value ? '<br><small>Catatan: ' + note_value + '</small>' : ''}
+                        </div>`;
                     } else {
                         detailDiv.innerHTML = `<div class="alert alert-success">
-            <strong>✓ Keputusan APPROVE tersimpan.</strong><br>
-            Next: <em>${js.next || 'SELESAI'}</em>
-            ${note_value ? '<br><small>Catatan: ' + note_value + '</small>' : ''}
-          </div>`;
+                            <strong>✓ Keputusan APPROVE tersimpan.</strong><br>
+                            Next: <em>${js.next || 'SELESAI'}</em>
+                            ${note_value ? '<br><small>Catatan: ' + note_value + '</small>' : ''}
+                        </div>`;
                     }
                 })
                 .catch(err => {
                     console.error('Error:', err);
                     detailDiv.innerHTML = `<div class="alert alert-danger">
-              <strong>✗ Error:</strong> ${err.message}
-            </div>`;
+                        <strong>✗ Error:</strong> ${err.message}
+                    </div>`;
                     btn.disabled = false;
                 })
                 .finally(() => {
@@ -220,6 +233,130 @@ function attachDecisionHandlers() {
                 });
         });
     });
+}
+
+// ✅ Handler untuk CLOSE & REACTIVE
+function attachCloseReactiveHandlers() {
+    console.log("🔗 attachCloseReactiveHandlers() aktif");
+
+    // Handler untuk tombol CLOSE
+    const btnClose = detailDiv.querySelector('#btnClose');
+    if (btnClose) {
+        btnClose.addEventListener('click', () => {
+            const id = btnClose.dataset.id;
+            
+            console.log('=== CLOSE CLICKED ===');
+            console.log('Invoice ID:', id);
+
+            if (!confirm('Apakah Anda yakin ingin MENUTUP invoice ini? Invoice akan selesai.')) {
+                return;
+            }
+
+            btnClose.disabled = true;
+            busy = true;
+
+            const formData = new FormData();
+            formData.append('invoice_id', id);
+
+            // Ambil catatan keuangan
+            const note_field = document.getElementById("note_role");
+            const note_value = note_field ? note_field.value.trim() : "";
+            if (note_value) {
+                formData.append('note_keuangan', note_value);
+            }
+
+            console.log('Data CLOSE:', { invoice_id: id, note_keuangan: note_value });
+
+            fetch('index.php?page=scan&action=close', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => {
+                console.log('Response status:', r.status);
+                return r.json();
+            })
+            .then(js => {
+                console.log("Respon CLOSE dari server:", js);
+                if (!js.success) throw new Error(js.message || 'Gagal menutup invoice');
+
+                detailDiv.innerHTML = `<div class="alert alert-success">
+                    <strong>✓ Invoice berhasil ditutup (CLOSE)</strong><br>
+                    <small>Invoice sudah selesai diproses</small>
+                </div>`;
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                detailDiv.innerHTML = `<div class="alert alert-danger">
+                    <strong>✗ Error:</strong> ${err.message}
+                </div>`;
+                btnClose.disabled = false;
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    detailDiv.innerHTML = '';
+                    statusElem.textContent = 'Arahkan kamera ke QR code invoice';
+                    busy = false;
+                    lastText = null;
+                }, 2500);
+            });
+        });
+    }
+
+    // Handler untuk tombol REACTIVE
+    const btnReactive = detailDiv.querySelector('#btnReactive');
+    if (btnReactive) {
+        btnReactive.addEventListener('click', () => {
+            const id = btnReactive.dataset.id;
+            
+            console.log('=== REACTIVE CLICKED ===');
+            console.log('Invoice ID:', id);
+
+            if (!confirm('Apakah Anda yakin ingin mengaktifkan kembali invoice ini untuk revisi?')) {
+                return;
+            }
+
+            btnReactive.disabled = true;
+            busy = true;
+
+            const formData = new FormData();
+            formData.append('invoice_id', id);
+
+            console.log('Data REACTIVE:', { invoice_id: id });
+
+            fetch('index.php?page=scan&action=reactive', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => {
+                console.log('Response status:', r.status);
+                return r.json();
+            })
+            .then(js => {
+                console.log("Respon REACTIVE dari server:", js);
+                if (!js.success) throw new Error(js.message || 'Gagal mengaktifkan kembali invoice');
+
+                detailDiv.innerHTML = `<div class="alert alert-success">
+                    <strong>✓ Invoice berhasil diaktifkan kembali</strong><br>
+                    <small>Current role: ${js.current_role}</small>
+                </div>`;
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                detailDiv.innerHTML = `<div class="alert alert-danger">
+                    <strong>✗ Error:</strong> ${err.message}
+                </div>`;
+                btnReactive.disabled = false;
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    detailDiv.innerHTML = '';
+                    statusElem.textContent = 'Arahkan kamera ke QR code invoice';
+                    busy = false;
+                    lastText = null;
+                }, 2500);
+            });
+        });
+    }
 }
 </script>
 <?php

@@ -4,8 +4,8 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../../config/database.php';
 
 /* ------------ Konfigurasi Upload ------------ */
-$UPLOAD_DIR   = realpath(__DIR__ . '/../../public') . '/uploads/invoice/'; // path absolut untuk invoice
-$UPLOAD_URL   = 'uploads/invoice/';                                        // URL relatif dari /public
+$UPLOAD_DIR   = realpath(__DIR__ . '/../../public') . '/uploads/invoice/';
+$UPLOAD_URL   = 'uploads/invoice/';
 $MAX_MB       = 10;
 $MAX_BYTES    = $MAX_MB * 1024 * 1024;
 $ALLOWED_EXT  = ['pdf', 'png', 'jpg', 'jpeg', 'xls', 'xlsx'];
@@ -17,11 +17,10 @@ if (!is_dir($UPLOAD_DIR) || !is_writable($UPLOAD_DIR)) {
     $_SESSION['error'] = 'Folder upload tidak bisa ditulis: ' . $UPLOAD_DIR;
 }
 
-/* ------------ Helper: simpan files ke disk & DB untuk invoice ------------ */
+/* ------------ Helper: normalize upload array ------------ */
 function normalize_upload_array(array $arr): array
 {
-    // pastikan selalu berupa array-of-files
-    if (!is_array($arr['name'])) { // fallback kalau name tanpa []
+    if (!is_array($arr['name'])) {
         foreach (['name', 'type', 'tmp_name', 'error', 'size'] as $k) {
             $arr[$k] = [$arr[$k]];
         }
@@ -29,6 +28,7 @@ function normalize_upload_array(array $arr): array
     return $arr;
 }
 
+/* ------------ Helper: simpan files ke disk & DB ------------ */
 function save_invoice_files(PDO $conn, int $invoiceId, string $field, string $dir, array $allowedExt, int $maxBytes, array &$debugErrors): int
 {
     if (empty($_FILES[$field])) return 0;
@@ -37,49 +37,41 @@ function save_invoice_files(PDO $conn, int $invoiceId, string $field, string $di
     $saved = 0;
 
     foreach ($files['name'] as $i => $origName) {
-        // skip kalau kosong
         if (!$origName || trim($origName) === '') continue;
 
         $err  = $files['error'][$i];
         $tmp  = $files['tmp_name'][$i];
         $size = (int)$files['size'][$i];
 
-        // cek error bawaan PHP
         if ($err !== UPLOAD_ERR_OK) {
             $debugErrors[] = "$origName: upload error code $err";
             continue;
         }
 
-        // batas ukuran
         if ($size > $maxBytes) {
             $debugErrors[] = "$origName: melebihi batas {$maxBytes} bytes";
             continue;
         }
 
-        // ekstensi
         $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
         if (!in_array($ext, $allowedExt, true)) {
             $debugErrors[] = "$origName: ekstensi tidak diizinkan ($ext)";
             continue;
         }
 
-        // pastikan folder writable
         if (!is_writable($dir)) {
             $debugErrors[] = "$origName: folder upload tidak writable ($dir)";
             continue;
         }
 
-        // pindahkan
         $stored = uniqid('inv_', true) . '.' . $ext;
         if (!@move_uploaded_file($tmp, $dir . $stored)) {
             $debugErrors[] = "$origName: gagal move_uploaded_file()";
             continue;
         }
 
-        // mime (opsional)
         $mime = function_exists('mime_content_type') ? @mime_content_type($dir . $stored) : null;
 
-        // simpan DB
         $ins = $conn->prepare("
             INSERT INTO invoice_files (invoice_id, filename, stored_name, mime, size_bytes, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
@@ -90,6 +82,7 @@ function save_invoice_files(PDO $conn, int $invoiceId, string $field, string $di
     return $saved;
 }
 
+/* ------------ Auth Check ------------ */
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php?page=login');
     exit;
@@ -118,7 +111,7 @@ if (!in_array($role, $allowed, true)) {
     exit('Access denied');
 }
 
-// urutan alur (sesuai kebutuhan proses)
+// urutan alur approval
 $flow = [
     'ADMIN_WILAYAH',
     'PERWAKILAN_PI',
@@ -138,10 +131,17 @@ $resolveCurrent = function (array $logs) use ($flow, $idxOf) {
     $current = 'ADMIN_WILAYAH';
     if (!$logs) return $current;
     $last = end($logs);
-    $i    = $idxOf($last['role']);
+    
+    // ✅ Skip jika status CLOSE atau REACTIVE
+    if (in_array($last['decision'], ['CLOSE', 'REACTIVE'])) {
+        // Jika CLOSE atau REACTIVE, current_role tetap di role terakhir yang melakukan aksi
+        return $last['role'];
+    }
+    
+    $i = $idxOf($last['role']);
     if ($last['decision'] === 'APPROVED') {
         $current = ($i !== null && isset($flow[$i + 1])) ? $flow[$i + 1] : null;
-    } else { // REJECTED => turun satu
+    } else { // REJECTED
         if ($i !== null) $current = ($i > 0) ? $flow[$i - 1] : $flow[0];
     }
     return $current;
@@ -161,26 +161,23 @@ if ($action === 'fetch') {
         $stmt->execute([$invId]);
         $inv = $stmt->fetch(PDO::FETCH_ASSOC);
 
+        if ($role === 'ADMIN_WILAYAH') {
+            $stmt = $conn->prepare("
+                SELECT COUNT(*)
+                FROM user_admin_wilayah
+                WHERE id_user = ?
+                  AND id_wilayah = (
+                      SELECT id_wilayah FROM gudang WHERE id = ?
+                  )
+            ");
+            $stmt->execute([$userId, $inv['gudang_id']]);
+            $allowed = $stmt->fetchColumn();
 
-      if ($role === 'ADMIN_WILAYAH') {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*)
-        FROM user_admin_wilayah
-        WHERE id_user = ?
-          AND id_wilayah = (
-              SELECT id_wilayah FROM gudang WHERE id = ?
-          )
-    ");
-    $stmt->execute([$userId, $inv['gudang_id']]);
-    $allowed = $stmt->fetchColumn();
-
-    if (!$allowed) {
-        http_response_code(403);
-        exit('Anda bukan admin wilayah untuk invoice ini.');
-    }
-}
-
-
+            if (!$allowed) {
+                http_response_code(403);
+                exit('Anda bukan admin wilayah untuk invoice ini.');
+            }
+        }
 
         if (!$inv) {
             http_response_code(404);
@@ -206,7 +203,6 @@ if ($action === 'fetch') {
         $stmt->execute([$invId]);
         $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // ✅ Ambil file yang sudah diupload
         $stmt = $conn->prepare("
           SELECT `id`, `filename`, `stored_name`, `mime`, `size_bytes`, `created_at`
           FROM `invoice_files`
@@ -218,17 +214,16 @@ if ($action === 'fetch') {
 
         $current = $resolveCurrent($logs);
 
-        // sinkron ke DB jika beda
+        // Sinkron current_role di DB
         if (($inv['current_role'] ?? null) !== $current) {
             $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
             $upd->execute([$current, $invId]);
             $inv['current_role'] = $current;
         }
 
-        // pass ke view
         $userIdView = $userId;
         $invoiceFiles = $files ?? [];
-        $uploadUrl = $UPLOAD_URL; // pass URL untuk download file
+        $uploadUrl = $UPLOAD_URL;
         require __DIR__ . '/../views/scan/invoice_detail.php';
     } catch (Throwable $e) {
         http_response_code(500);
@@ -239,9 +234,7 @@ if ($action === 'fetch') {
 
 /* ===================== DECIDE (JSON) ===================== */
 if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Clear all output buffers
     while (ob_get_level()) ob_end_clean();
-
     header('Content-Type: application/json; charset=utf-8');
 
     try {
@@ -249,19 +242,13 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $mode   = $_POST['decision'] ?? '';
         $status = ($mode === 'approve') ? 'APPROVED' : 'REJECTED';
 
-        // Log untuk debugging
-        error_log("Invoice ID: $invId");
-        error_log("Decision: $mode");
-        error_log("Status: $status");
-        error_log("Role: $role");
-        error_log("User ID: $userId");
+        error_log("Invoice ID: $invId | Decision: $mode | Status: $status | Role: $role | User ID: $userId");
 
         if (!$invId) {
             echo json_encode(['success' => false, 'message' => 'Invoice ID tidak valid']);
             exit;
         }
 
-        // ambil logs untuk tentukan current server-side
         $stmt = $conn->prepare("
           SELECT `id`, `role`, `status` AS `decision`, `created_by`, `created_at`
           FROM `approval_log`
@@ -276,20 +263,23 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("Current role: $current");
 
         if ($current !== $role) {
-            echo json_encode(['success' => false, 'message' => 'Bukan giliran Anda untuk memutuskan. Current: ' . $current]);
+            echo json_encode(['success' => false, 'message' => 'Bukan giliran Anda. Current: ' . $current]);
             exit;
         }
 
-        // cegah double decide oleh role yang sama di siklus yang sama
-        if ($logs) {
+        // ✅ Cegah double decide - kecuali jika sedang REACTIVE
+        $lastLog = $logs ? end($logs) : null;
+        $isReactive = ($lastLog && $lastLog['decision'] === 'REACTIVE' && $lastLog['role'] === 'KEUANGAN');
+        
+        if ($logs && !$isReactive) {
             $last = end($logs);
-            if ((int)$last['created_by'] === $userId && $last['role'] === $role) {
+            if ((int)$last['created_by'] === $userId && $last['role'] === $role && !in_array($last['decision'], ['CLOSE', 'REACTIVE'])) {
                 echo json_encode(['success' => false, 'message' => 'Anda sudah memberi keputusan untuk siklus ini.']);
                 exit;
             }
         }
 
-        // simpan log
+        // Simpan log
         $stmt = $conn->prepare("
           INSERT INTO `approval_log` (`invoice_id`,`role`,`status`,`created_by`,`created_at`)
           VALUES (?,?,?,?, NOW())
@@ -298,14 +288,14 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         error_log("Approval log inserted successfully");
 
-        // hitung next role
-        $i    = $idxOf($role);
+        // Hitung next role
+        $i = $idxOf($role);
         $next = null;
         if ($i !== null) {
             if ($status === 'APPROVED') {
-                if (isset($flow[$i + 1])) $next = $flow[$i + 1];      // naik satu
+                if (isset($flow[$i + 1])) $next = $flow[$i + 1];
             } else {
-                $next = ($i > 0) ? $flow[$i - 1] : $flow[0];          // turun satu
+                $next = ($i > 0) ? $flow[$i - 1] : $flow[0];
             }
         }
 
@@ -319,14 +309,6 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $note_admin_pcs = !empty($_POST['note_admin_pcs']) ? trim($_POST['note_admin_pcs']) : null;
         $note_keuangan = !empty($_POST['note_keuangan']) ? trim($_POST['note_keuangan']) : null;
 
-        // Log data yang diterima
-        error_log("Data POST - no_soj: " . ($no_soj ?? 'NULL'));
-        error_log("Data POST - no_mmj: " . ($no_mmj ?? 'NULL'));
-        error_log("Data POST - note_admin_wilayah: " . ($note_admin_wilayah ?? 'NULL'));
-        error_log("Data POST - note_perwakilan_pi: " . ($note_perwakilan_pi ?? 'NULL'));
-        error_log("Data POST - note_admin_pcs: " . ($note_admin_pcs ?? 'NULL'));
-        error_log("Data POST - note_keuangan: " . ($note_keuangan ?? 'NULL'));
-
         // Update invoice berdasarkan role
         if ($role === 'ADMIN_WILAYAH') {
             $upd = $conn->prepare("UPDATE `invoice` 
@@ -334,14 +316,12 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     `note_admin_wilayah` = ?
                 WHERE `id` = ?");
             $upd->execute([$next, $note_admin_wilayah, $invId]);
-            error_log("Updated ADMIN_WILAYAH note");
         } elseif ($role === 'PERWAKILAN_PI') {
             $upd = $conn->prepare("UPDATE `invoice` 
                 SET `current_role` = ?, 
                     `note_perwakilan_pi` = ?
                 WHERE `id` = ?");
             $upd->execute([$next, $note_perwakilan_pi, $invId]);
-            error_log("Updated PERWAKILAN_PI note");
         } elseif ($role === 'ADMIN_PCS') {
             $upd = $conn->prepare("UPDATE `invoice` 
                 SET `current_role` = ?, 
@@ -350,31 +330,24 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     `note_admin_pcs` = ?
                 WHERE `id` = ?");
             $upd->execute([$next, $no_soj, $no_mmj, $note_admin_pcs, $invId]);
-            error_log("Updated ADMIN_PCS note and numbers");
         } elseif ($role === 'KEUANGAN') {
             $upd = $conn->prepare("UPDATE `invoice` 
                 SET `current_role` = ?, 
                     `note_keuangan` = ?
                 WHERE `id` = ?");
             $upd->execute([$next, $note_keuangan, $invId]);
-            error_log("Updated KEUANGAN note");
         } else {
-            // Role lain atau SUPERADMIN
             $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
             $upd->execute([$next, $invId]);
-            error_log("Updated current_role only");
         }
 
         error_log("Invoice updated successfully");
 
-        // ✅ Simpan file jika ada (khusus ADMIN_PCS)
+        // Simpan file jika ada (khusus ADMIN_PCS)
         $uploadErrors = [];
         if ($role === 'ADMIN_PCS' && !empty($_FILES['files'])) {
             $savedCount = save_invoice_files($conn, $invId, 'files', $UPLOAD_DIR, $ALLOWED_EXT, $MAX_BYTES, $uploadErrors);
             error_log("Files saved: $savedCount");
-            if (!empty($uploadErrors)) {
-                error_log("Upload errors: " . implode(', ', $uploadErrors));
-            }
         }
 
         $message = 'Keputusan berhasil disimpan';
@@ -389,8 +362,174 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
     } catch (Throwable $e) {
         error_log("Error in decide action: " . $e->getMessage());
-        error_log("Stack trace: " . $e->getTraceAsString());
+        echo json_encode([
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage()
+        ]);
+    }
+    exit;
+}
 
+/* ===================== CLOSE (JSON) ===================== */
+if ($action === 'close' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    while (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+
+    try {
+        $invId = (int)($_POST['invoice_id'] ?? 0);
+
+        error_log("Close Invoice ID: $invId | Role: $role | User ID: $userId");
+
+        if (!$invId) {
+            echo json_encode(['success' => false, 'message' => 'Invoice ID tidak valid']);
+            exit;
+        }
+
+        if ($role !== 'KEUANGAN') {
+            echo json_encode(['success' => false, 'message' => 'Hanya KEUANGAN yang dapat menutup invoice']);
+            exit;
+        }
+
+        $stmt = $conn->prepare("
+          SELECT `id`, `role`, `status` AS `decision`, `created_by`, `created_at`
+          FROM `approval_log`
+          WHERE `invoice_id` = ?
+          ORDER BY `created_at` ASC, `id` ASC
+        ");
+        $stmt->execute([$invId]);
+        $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $current = $resolveCurrent($logs);
+
+        error_log("Current role: $current");
+
+        if ($current !== 'KEUANGAN') {
+            echo json_encode(['success' => false, 'message' => 'Bukan giliran KEUANGAN. Current: ' . $current]);
+            exit;
+        }
+
+        // ✅ Cegah double close - kecuali jika sedang REACTIVE
+        $lastLog = $logs ? end($logs) : null;
+        $isReactive = ($lastLog && $lastLog['decision'] === 'REACTIVE');
+        
+        if ($logs && !$isReactive) {
+            $last = end($logs);
+            if ($last['role'] === 'KEUANGAN' && $last['decision'] === 'CLOSE') {
+                echo json_encode(['success' => false, 'message' => 'Invoice sudah ditutup sebelumnya']);
+                exit;
+            }
+        }
+
+        $note_keuangan = !empty($_POST['note_keuangan']) ? trim($_POST['note_keuangan']) : null;
+
+        // ✅ Update invoice: current_role tetap KEUANGAN (tidak NULL)
+        $upd = $conn->prepare("
+            UPDATE `invoice` 
+            SET `note_keuangan` = ?
+            WHERE `id` = ?
+        ");
+        $upd->execute([$note_keuangan, $invId]);
+
+        error_log("Invoice closed successfully, current_role tetap KEUANGAN");
+
+        // Simpan log CLOSE
+        $stmt = $conn->prepare("
+            INSERT INTO `approval_log` (`invoice_id`, `role`, `status`, `created_by`, `created_at`)
+            VALUES (?, 'KEUANGAN', 'CLOSE', ?, NOW())
+        ");
+        $stmt->execute([$invId, $userId]);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Invoice berhasil ditutup (CLOSE)',
+            'current_role' => 'KEUANGAN'
+        ]);
+    } catch (Throwable $e) {
+        error_log("Error in close action: " . $e->getMessage());
+        echo json_encode([
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage()
+        ]);
+    }
+    exit;
+}
+
+/* ===================== REACTIVE (JSON) ===================== */
+if ($action === 'reactive' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    while (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+
+    try {
+        $invId = (int)($_POST['invoice_id'] ?? 0);
+
+        error_log("Reactive Invoice ID: $invId | Role: $role | User ID: $userId");
+
+        if (!$invId) {
+            echo json_encode(['success' => false, 'message' => 'Invoice ID tidak valid']);
+            exit;
+        }
+
+        if ($role !== 'KEUANGAN') {
+            echo json_encode(['success' => false, 'message' => 'Hanya KEUANGAN yang dapat mengaktifkan kembali invoice']);
+            exit;
+        }
+
+        // Ambil invoice dan status terakhir
+        $stmt = $conn->prepare("SELECT `current_role` FROM `invoice` WHERE `id` = ?");
+        $stmt->execute([$invId]);
+        $inv = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$inv) {
+            echo json_encode(['success' => false, 'message' => 'Invoice tidak ditemukan']);
+            exit;
+        }
+
+        // Ambil status terakhir dari approval log
+        $stmt = $conn->prepare("
+            SELECT `role`, `status`
+            FROM `approval_log`
+            WHERE `invoice_id` = ?
+            ORDER BY `created_at` DESC, `id` DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$invId]);
+        $lastLog = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$lastLog) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada history approval']);
+            exit;
+        }
+
+        // ✅ Invoice bisa direaktivasi jika:
+        // 1. Status terakhir adalah CLOSE
+        // 2. current_role adalah KEUANGAN
+        if ($lastLog['status'] !== 'CLOSE') {
+            echo json_encode(['success' => false, 'message' => 'Invoice tidak dalam status CLOSE, tidak bisa direaktivasi']);
+            exit;
+        }
+
+        if ($inv['current_role'] !== 'KEUANGAN') {
+            echo json_encode(['success' => false, 'message' => 'Hanya invoice yang sudah di-CLOSE oleh KEUANGAN yang bisa direaktivasi']);
+            exit;
+        }
+
+        // ✅ REACTIVE: current_role tetap KEUANGAN, status berubah jadi REACTIVE
+        error_log("REACTIVE: Invoice akan tetap di KEUANGAN dengan status REACTIVE");
+
+        // Simpan log REACTIVE
+        $stmt = $conn->prepare("
+            INSERT INTO `approval_log` (`invoice_id`, `role`, `status`, `created_by`, `created_at`)
+            VALUES (?, 'KEUANGAN', 'REACTIVE', ?, NOW())
+        ");
+        $stmt->execute([$invId, $userId]);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Invoice berhasil diaktifkan kembali. Anda dapat melakukan revisi atau close lagi.',
+            'current_role' => 'KEUANGAN'
+        ]);
+    } catch (Throwable $e) {
+        error_log("Error in reactive action: " . $e->getMessage());
         echo json_encode([
             'success' => false,
             'message' => 'Error: ' . $e->getMessage()
