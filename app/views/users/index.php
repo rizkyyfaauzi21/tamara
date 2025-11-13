@@ -49,7 +49,7 @@
                         <td><?= htmlspecialchars($g['nama']) ?></td>
                         <td><?= htmlspecialchars($g['username']) ?></td>
                         <td><?= htmlspecialchars($g['role']) ?></td>
-                        <td><?= htmlspecialchars($g['nama_gudang']) ?></td>
+                        <td><?= htmlspecialchars($g['nama_gudang'] ?? "-") ?></td>
                         <td>
                             <button type="button" class="btn btn-sm btn-warning"
                                 onclick="openEditModal(
@@ -97,7 +97,7 @@
                         <td><?= htmlspecialchars($g['nama']) ?></td>
                         <td><?= htmlspecialchars($g['username']) ?></td>
                         <td><?= htmlspecialchars($g['role']) ?></td>
-                        <td><?= htmlspecialchars($g['nama_gudang']) ?></td>
+                        <td><?= htmlspecialchars($g['nama_gudang']?? "-") ?></td>
                         <td>
                             <button type="button" class="btn btn-sm btn-warning"
                                 onclick="openEditModal(

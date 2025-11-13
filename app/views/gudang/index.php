@@ -132,14 +132,14 @@
                     <tr>
                         <td><?= $i + 1 ?></td>
                         <td><?= htmlspecialchars($g['nama_gudang']) ?></td>
-                        <td><?= htmlspecialchars($g['wilayah']) ?></td>
+                        <td><?= htmlspecialchars($g['wilayah'] ?? '-') ?></td>
 
                         <td>
                             <button type="button" class="btn btn-sm btn-warning"
                                 onclick='editNamaGudang(
                                 <?= json_encode($g["id"]) ?>, 
                                 <?= json_encode($g["nama_gudang"]) ?>, 
-                                <?= json_encode($g["id_wilayah"]) ?>
+                                <?= json_encode($g["id_wilayah"] ?? "") ?>
                             )'>Edit</button>
 
 
@@ -245,10 +245,11 @@
 
 <script>
     function editNamaGudang(id, nama, idWilayah) {
-        console.log("Fungsi dipanggil:", id, nama, idWilayah);
+        
         document.getElementById('edit-nama-id').value = id;
         document.getElementById('edit-nama-gudang').value = nama;
-        document.getElementById('edit-wilayah_gudang').value = idWilayah;
+          // Jika idWilayah NULL → jadikan "" agar option pertama terpilih
+    document.getElementById('edit-wilayah_gudang').value = idWilayah ?? ""
     }
 
     function editAdminWilayah(id, wilayah, adminWilayah) {

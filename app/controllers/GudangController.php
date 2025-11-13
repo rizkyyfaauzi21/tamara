@@ -248,10 +248,16 @@ if ($action === 'tarif' && isset($_GET['delete'])) {
 // ==========================
 $wilayahList = $conn->query("SELECT * FROM wilayah ORDER BY wilayah ASC")->fetchAll(PDO::FETCH_ASSOC);
 $admin_wilayahList = $conn->query("SELECT * FROM users where role = 'ADMIN_WILAYAH';")->fetchAll(PDO::FETCH_ASSOC);
+// $gudangList = $conn->query("
+//     SELECT g.id, g.nama_gudang, g.id_wilayah 
+//     FROM gudang g 
+    
+//     ORDER BY g.id DESC
+// ")->fetchAll(PDO::FETCH_ASSOC);
 $gudangList = $conn->query("
     SELECT g.id, g.nama_gudang, g.id_wilayah, w.wilayah 
     FROM gudang g 
-    JOIN wilayah w ON g.id_wilayah = w.id
+    LEFT JOIN wilayah w ON g.id_wilayah = w.id
     ORDER BY g.id DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
 $tarifList = $conn->query("

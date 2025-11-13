@@ -185,7 +185,7 @@ $admin_gudangList = $conn->query("SELECT
   u.id_gudang, 
   g.nama_gudang 
 FROM users u
-JOIN gudang g ON u.id_gudang = g.id 
+LEFT JOIN gudang g ON u.id_gudang = g.id 
 WHERE u.role = 'ADMIN_GUDANG';")->fetchAll(PDO::FETCH_ASSOC);
 
 // menampilkan list user role kepala gudang
@@ -197,7 +197,7 @@ $kepala_gudangList = $conn->query("SELECT
   u.id_gudang, 
   g.nama_gudang 
 FROM users u
-JOIN gudang g ON u.id_gudang = g.id 
+LEFT JOIN gudang g ON u.id_gudang = g.id 
 WHERE u.role = 'KEPALA_GUDANG';")->fetchAll(PDO::FETCH_ASSOC);
 
 $admin_wilayahList = $conn->query("
