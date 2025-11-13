@@ -90,6 +90,9 @@ $lastDecision = $lastLog['decision'] ?? null;
 $lastRole     = $lastLog['role'] ?? null;
 $current = $inv['current_role'];
 
+// ✅ Cek apakah Admin PCS sudah approve
+$adminPcsApproved = in_array('ADMIN_PCS', $approved, true);
+
 // ✅ Cek apakah sedang dalam status REACTIVE atau CLOSE
 $isReactive = ($lastDecision === 'REACTIVE' && $current === 'KEUANGAN');
 $isClosed = ($lastDecision === 'CLOSE' && $current === 'KEUANGAN');
@@ -345,74 +348,38 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
             </div>
 
         <?php elseif ($current === 'KEUANGAN' && !$hasDecided): ?>
-            <!-- ✅ KEUANGAN sedang giliran pertama kali (belum pernah decide): tampilkan form + tombol APPROVE dan REJECT -->
+            <!-- ✅ KEUANGAN sedang giliran: tampilkan form -->
             <div class="mb-4 mt-3">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor MMJ</label>
-                        <input type="text" id="no_mmj" class="form-control"
-                            value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>" disabled>
+                <!-- ✅ SOJ dan MMJ hanya tampil jika Admin PCS sudah approve -->
+                <?php if ($adminPcsApproved): ?>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nomor MMJ</label>
+                            <input type="text" id="no_mmj" class="form-control"
+                                value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nomor SOJ</label>
+                            <input type="text" id="no_soj" class="form-control"
+                                value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>" disabled>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor SOJ</label>
-                        <input type="text" id="no_soj" class="form-control"
-                            value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>" disabled>
+                <?php else: ?>
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> Nomor SOJ dan MMJ akan ditampilkan setelah Admin PCS melakukan approve.
                     </div>
-                </div>
+                <?php endif; ?>
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">
                         Catatan Keuangan
-                        <small class="text-warning">(Revisi - Wajib diisi jika reject)</small>
-                    </label>
-                    <textarea id="note_role" class="form-control" rows="3"
-                        placeholder="Jelaskan alasan revisi jika akan reject..."><?= htmlspecialchars($inv['note_keuangan'] ?? '') ?></textarea>
-                    <small class="form-text text-muted">
-                        <i class="bi bi-info-circle"></i> Catatan ini akan dikirim ke ADMIN PCS jika Anda klik REJECT.
-                    </small>
-                </div>
-
-                <div class="text-end">
-                    <button class="btn btn-danger btn-decision" 
-                            data-decision="reject" 
-                            data-id="<?= (int)$inv['id'] ?>"
-                            data-role="KEUANGAN">
-                        <i class="bi bi-x-circle"></i> Reject (Turun ke Admin PCS)
-                    </button>
-                    
-                    <button class="btn btn-success" 
-                            id="btnClose" 
-                            data-id="<?= (int)$inv['id'] ?>">
-                        <i class="bi bi-check-circle"></i> Close (Selesai)
-                    </button>
-                </div>
-            </div>
-
-        <?php elseif ($current === 'KEUANGAN' && !$hasDecided): ?>
-            <div class="mb-4 mt-3">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor MMJ</label>
-                        <input type="text" id="no_mmj" class="form-control"
-                            value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>" disabled>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Nomor SOJ</label>
-                        <input type="text" id="no_soj" class="form-control"
-                            value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>" disabled>
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">
-                        Catatan Keuangan
-                        <?php if ($isReactive): ?>
+                        <?php if ($isReactive || $isRevision): ?>
                             <small class="text-warning">(Revisi - Wajib diisi jika reject)</small>
                         <?php endif; ?>
                     </label>
                     <textarea id="note_role" class="form-control" rows="3"
-                        placeholder="<?= $isReactive ? 'Jelaskan alasan revisi jika akan reject...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_keuangan'] ?? '') ?></textarea>
-                    <?php if ($isReactive): ?>
+                        placeholder="<?= ($isReactive || $isRevision) ? 'Jelaskan alasan revisi jika akan reject...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_keuangan'] ?? '') ?></textarea>
+                    <?php if ($isReactive || $isRevision): ?>
                         <small class="form-text text-muted">
                             <i class="bi bi-info-circle"></i> Catatan ini akan dikirim ke ADMIN PCS jika Anda klik REJECT.
                         </small>
@@ -436,7 +403,7 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
             </div>
 
         <?php else: ?>
-            <!-- Kondisi 4: KEUANGAN belum giliran atau sudah memberikan keputusan -->
+            <!-- Kondisi: KEUANGAN belum giliran atau sudah memberikan keputusan -->
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i> 
                 <?php if ($hasDecided): ?>
@@ -447,7 +414,7 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
             </div>
         <?php endif; ?>
 
-    <?php elseif ($canDecide || $canEdit): ?>
+    <?php elseif ($canDecide || $canEdit || ($role === 'ADMIN_PCS' && $adminPcsApproved)): ?>
         <!-- Form untuk role lain (ADMIN_WILAYAH, PERWAKILAN_PI, ADMIN_PCS) -->
         <div class="mb-4 mt-3">
             <!-- Form fields section -->
