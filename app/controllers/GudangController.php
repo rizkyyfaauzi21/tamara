@@ -10,39 +10,7 @@ require_once __DIR__ . '/../views/layout/header.php';
 // --- ACTION HANDLER ---
 $action = $_GET['action'] ?? null;
 
-// ==========================
-// 1. KELOLA NAMA WILAYAH
-// ==========================
-// if ($action === 'wilayah' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-//     $wilayah = $_POST['wilayah'];
 
-//     if (!empty($_POST['id'])) {
-//         // Update wilayah 
-//         $stmt = $conn->prepare("UPDATE wilayah SET wilayah = :wilayah WHERE id = :id");
-//         $stmt->execute([
-//             'wilayah' => $wilayah,
-//             'id' => $_POST['id']
-//         ]);
-//         $_SESSION['success'] = "Wilayah berhasil diperbarui.";
-//     } else {
-//         // Tambah wilayah baru
-//         $stmt = $conn->prepare("INSERT INTO wilayah (wilayah) VALUES (:wilayah)");
-//         $stmt->execute(['wilayah' => $wilayah]);
-//         $_SESSION['success'] = "Wilayah baru berhasil ditambahkan.";
-//     }
-
-//     header("Location: index.php?page=gudang");
-//     exit;
-// }
-
-// if ($action === 'wilayah' && isset($_GET['delete'])) {
-//     $id = $_GET['delete'];
-//     $stmt = $conn->prepare("DELETE FROM wilayah WHERE id = :id");
-//     $stmt->execute(['id' => $id]);
-//     $_SESSION['success'] = "Wilayah berhasil dihapus.";
-//     header("Location: index.php?page=gudang");
-//     exit;
-// }
 
 
 if ($action === 'wilayah' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -146,30 +114,45 @@ if ($action === 'wilayah' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // ==================================================
 // 3️⃣ HAPUS WILAYAH + RELASI
 // ==================================================
-if ($action === 'delete_wilayah' && isset($_GET['id'])) {
-    $id_wilayah = (int)$_GET['id'];
+// pastikan ini berada di tempat yang menangani action 'admin_wilayah'
+if (($action ?? '') === 'admin_wilayah') {
+
+  // ==== DELETE WILAYAH + RELASI ====
+if (isset($_GET['delete_wilayah'])) {
+
+    $id_wilayah = (int) $_GET['delete_wilayah'];
 
     try {
         $conn->beginTransaction();
 
-        // Hapus dulu relasi di tabel user_admin_wilayah
-        $stmtRelasi = $conn->prepare("DELETE FROM user_admin_wilayah WHERE id_wilayah = :id_wilayah");
-        $stmtRelasi->execute(['id_wilayah' => $id_wilayah]);
+        // Hapus relasi jika ada
+        $stmtRel = $conn->prepare("
+            DELETE FROM user_admin_wilayah
+            WHERE id_wilayah = ?
+        ");
+        $stmtRel->execute([$id_wilayah]);
 
-        // Lalu hapus wilayah
-        $stmtWilayah = $conn->prepare("DELETE FROM wilayah WHERE id = :id_wilayah");
-        $stmtWilayah->execute(['id_wilayah' => $id_wilayah]);
+        // Hapus wilayah
+        $stmtWil = $conn->prepare("
+            DELETE FROM wilayah
+            WHERE id = ?
+        ");
+        $stmtWil->execute([$id_wilayah]);
 
         $conn->commit();
-        $_SESSION['success'] = "Wilayah dan relasinya berhasil dihapus.";
+        $_SESSION['success'] = "Wilayah berhasil dihapus.";
+
     } catch (PDOException $e) {
         $conn->rollBack();
         $_SESSION['error'] = "Gagal menghapus wilayah: " . $e->getMessage();
     }
 
-    header("Location: index.php?page=gudang");
+    header("Location: index.php?page=gudang&action=admin_wilayah");
     exit;
 }
+
+}
+
 
 
 

@@ -72,10 +72,11 @@
                     )'>
                                 Edit
                             </button>
-
-                            <a href="index.php?page=users&action=admin_wilayah&delete=<?= $g['id_relasi'] ?>"
+                            <a href="index.php?page=gudang&action=admin_wilayah&delete_wilayah=<?= $g['id_wilayah'] ?>"
                                 class="btn btn-sm btn-danger"
-                                onclick="return confirm('Hapus user ini dari wilayah tersebut?')">Hapus</a>
+                                onclick="return confirm('Hapus wilayah dan relasinya?')">
+                                Hapus
+                            </a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
