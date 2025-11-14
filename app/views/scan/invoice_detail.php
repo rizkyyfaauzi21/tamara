@@ -336,13 +336,13 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
 
     <!-- ✅ FORM INPUT & TOMBOL ACTION -->
     <?php if ($role === 'KEUANGAN'): ?>
-        
+
         <?php if ($isClosed && !$isReactive): ?>
             <!-- ✅ Invoice sudah CLOSE: tampilkan tombol REACTIVE -->
             <div class="mb-4 mt-3">
-                <button class="btn btn-warning" 
-                        id="btnReactive" 
-                        data-id="<?= (int)$inv['id'] ?>">
+                <button class="btn btn-warning"
+                    id="btnReactive"
+                    data-id="<?= (int)$inv['id'] ?>">
                     <i class="bi bi-arrow-clockwise"></i> Aktifkan Kembali (Reactive)
                 </button>
             </div>
@@ -387,16 +387,16 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                 </div>
 
                 <div class="text-end">
-                    <button class="btn btn-danger btn-decision" 
-                            data-decision="reject" 
-                            data-id="<?= (int)$inv['id'] ?>"
-                            data-role="KEUANGAN">
+                    <button class="btn btn-danger btn-decision"
+                        data-decision="reject"
+                        data-id="<?= (int)$inv['id'] ?>"
+                        data-role="KEUANGAN">
                         <i class="bi bi-x-circle"></i> Reject (Turun ke Admin PCS)
                     </button>
-                    
-                    <button class="btn btn-success" 
-                            id="btnClose" 
-                            data-id="<?= (int)$inv['id'] ?>">
+
+                    <button class="btn btn-success"
+                        id="btnClose"
+                        data-id="<?= (int)$inv['id'] ?>">
                         <i class="bi bi-check-circle"></i> Close (Selesai)
                     </button>
                 </div>
@@ -405,7 +405,7 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
         <?php else: ?>
             <!-- Kondisi: KEUANGAN belum giliran atau sudah memberikan keputusan -->
             <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> 
+                <i class="bi bi-info-circle"></i>
                 <?php if ($hasDecided): ?>
                     Anda sudah memberikan keputusan untuk siklus ini.
                 <?php else: ?>
@@ -414,7 +414,10 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
             </div>
         <?php endif; ?>
 
+
+
     <?php elseif ($canDecide || $canEdit || ($role === 'ADMIN_PCS' && $adminPcsApproved)): ?>
+
         <!-- Form untuk role lain (ADMIN_WILAYAH, PERWAKILAN_PI, ADMIN_PCS) -->
         <div class="mb-4 mt-3">
             <!-- Form fields section -->
@@ -434,7 +437,7 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                     </div>
                 </div>
 
-                <!-- Upload Multi File (ADMIN_PCS) -->
+                <!-- Upload Multi File (ADMIN_PCS) — SELALU RENDER untuk ADMIN_PCS -->
                 <div class="col-12 mb-3">
                     <label class="form-label">Lampiran (boleh banyak)</label>
 
@@ -445,8 +448,9 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                         <small class="text-muted d-block mt-1">
                             atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
                         </small>
+                        <!-- <label for="files-create" class="upload-label-overlay" aria-hidden="true"></label> -->
+                        <div class="upload-label-overlay"></div>
 
-                        <label for="files-create" class="upload-label-overlay" aria-hidden="true"></label>
                     </div>
 
                     <input id="files-create" type="file" name="files[]" class="d-none" multiple
@@ -455,6 +459,7 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                     <ul id="list-create" class="file-list"></ul>
                 </div>
             <?php endif; ?>
+
 
             <!-- ✅ INPUT CATATAN SESUAI ROLE -->
             <div class="mb-3">
@@ -534,96 +539,3 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
         </ul>
     <?php endif; ?>
 </div>
-
-<!-- ================= SCRIPT ================= -->
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // ✅ Inisialisasi Multi Uploader untuk ADMIN_PCS
-        function initMultiUploader(zoneId, inputId, listId, options = {}) {
-            const zone = document.getElementById(zoneId);
-            const input = document.getElementById(inputId);
-            const list = document.getElementById(listId);
-
-            if (!zone || !input || !list) return;
-
-            const MAX_BYTES = (options.maxMB || 10) * 1024 * 1024;
-            const ALLOWED = (options.allowed || ['pdf', 'png', 'jpg', 'jpeg', 'xls', 'xlsx']).map(x => x.toLowerCase());
-
-            const dt = new DataTransfer();
-
-            const extOf = (name) => (name.split('.').pop() || '').toLowerCase();
-            const labelOf = (name) => {
-                const ext = extOf(name);
-                if (ext === 'pdf') return 'Pdf';
-                if (ext === 'doc' || ext === 'docx') return 'Docx';
-                if (ext === 'xls' || ext === 'xlsx') return 'Xls';
-                if (ext === 'jpg' || ext === 'jpeg') return 'Jpg';
-                if (ext === 'png') return 'Png';
-                return ext || 'File';
-            };
-
-            function renderList() {
-                list.innerHTML = '';
-                Array.from(dt.files).forEach((f, idx) => {
-                    const li = document.createElement('li');
-                    li.className = 'file-pill';
-                    li.innerHTML = `
-                        <span class="file-badge">${labelOf(f.name)}</span>
-                        <span class="flex-grow-1 text-truncate">${f.name}</span>
-                        <button type="button" class="file-remove" title="Hapus">&times;</button>
-                    `;
-                    li.querySelector('.file-remove').addEventListener('click', () => {
-                        const newDt = new DataTransfer();
-                        Array.from(dt.files).forEach((ff, i) => {
-                            if (i !== idx) newDt.items.add(ff);
-                        });
-                        input.files = newDt.files;
-                        dt.items.clear();
-                        Array.from(newDt.files).forEach(ff => dt.items.add(ff));
-                        renderList();
-                    });
-                    list.appendChild(li);
-                });
-            }
-
-            function acceptFiles(files) {
-                Array.from(files).forEach(f => {
-                    const ext = extOf(f.name);
-                    if (!ALLOWED.includes(ext)) {
-                        console.warn('Tipe tidak diizinkan:', f.name);
-                        return;
-                    }
-                    if (f.size > MAX_BYTES) {
-                        console.warn('Kebesaran:', f.name);
-                        return;
-                    }
-                    dt.items.add(f);
-                });
-                input.files = dt.files;
-                renderList();
-            }
-
-            input.addEventListener('change', (e) => acceptFiles(e.target.files));
-
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev =>
-                zone.addEventListener(ev, e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                })
-            );
-            zone.addEventListener('drop', e => acceptFiles(e.dataTransfer.files));
-
-            zone.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    input.click();
-                }
-            });
-        }
-
-        // Inisialisasi uploader
-        initMultiUploader('dz-create', 'files-create', 'list-create', {
-            maxMB: 10
-        });
-    });
-</script>
