@@ -323,11 +323,23 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                                 (<?= number_format($file['size_bytes'] / 1024, 2) ?> KB)
                             </small>
                         </div>
-                        <a href="<?= htmlspecialchars('public/' . ($uploadUrl ?? 'uploads/invoice/') . $file['stored_name']) ?>"
-                            target="_blank"
-                            class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-download"></i> Download
-                        </a>
+                        <?php
+                        $baseUrl = rtrim($uploadUrl ?? 'uploads/invoice/', '/') . '/';
+                        $fileUrl = htmlspecialchars($baseUrl . $file['stored_name']);
+                        ?>
+                        <div class="">
+
+                            <a href="download/download.php?file=<?= urlencode($file['stored_name']) ?>"
+                                class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-download"></i> Download
+                            </a>
+
+
+                            <a href="<?= $fileUrl ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> Lihat
+                            </a>
+                        </div>
+
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -438,104 +450,106 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                 </div>
 
                 <!-- Upload Multi File (ADMIN_PCS) — SELALU RENDER untuk ADMIN_PCS -->
-                <div class="col-12 mb-3">
-                    <label class="form-label">Lampiran (boleh banyak)</label>
-
-                    <div id="dz-create" class="uploader p-4 text-center mb-2" role="button" tabindex="0"
-                        aria-label="Unggah lampiran">
-                        <div class="cloud mb-2">☁⬆</div>
-                        <div class="cta">Click To Upload</div>
-                        <small class="text-muted d-block mt-1">
-                            atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
-                        </small>
-                        <!-- <label for="files-create" class="upload-label-overlay" aria-hidden="true"></label> -->
-                        <div class="upload-label-overlay"></div>
-
-                    </div>
-
-                    <input id="files-create" type="file" name="files[]" class="d-none" multiple
-                        accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx">
-
-                    <ul id="list-create" class="file-list"></ul>
-                </div>
-            <?php endif; ?>
-
-
-            <!-- ✅ INPUT CATATAN SESUAI ROLE -->
-            <div class="mb-3">
-                <?php if ($role === 'ADMIN_WILAYAH'): ?>
-                    <label class="form-label fw-bold">
-                        Catatan Admin Wilayah
-                        <?php if ($canEdit): ?>
-                            <small class="text-muted">(Revisi)</small>
-                        <?php endif; ?>
-                    </label>
-                    <textarea id="note_role" class="form-control" rows="3"
-                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
-
-                <?php elseif ($role === 'PERWAKILAN_PI'): ?>
-                    <label class="form-label fw-bold">
-                        Catatan Perwakilan PI
-                        <?php if ($canEdit): ?>
-                            <small class="text-muted">(Revisi)</small>
-                        <?php endif; ?>
-                    </label>
-                    <textarea id="note_role" class="form-control" rows="3"
-                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
-
-                <?php elseif ($role === 'ADMIN_PCS'): ?>
-                    <label class="form-label fw-bold">
-                        Catatan Admin PCS
-                        <?php if ($canEdit): ?>
-                            <small class="text-muted">(Revisi)</small>
-                        <?php endif; ?>
-                    </label>
-                    <textarea id="note_role" class="form-control" rows="3"
-                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
-                <?php endif; ?>
-            </div>
-
-            <!-- Action buttons -->
-            <div class="text-end">
                 <?php if ($canDecide): ?>
-                    <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
-                        data-role="<?= htmlspecialchars($role) ?>">
-                        <i class="bi bi-check-circle"></i>
-                        <?= $isRevision && $current === $role ? 'Approve Revisi' : 'Approve' ?>
-                    </button>
-                    <?php if ($role !== 'ADMIN_WILAYAH'): ?>
-                        <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
-                            data-role="<?= htmlspecialchars($role) ?>">
-                            <i class="bi bi-x-circle"></i> Reject
-                        </button>
-                    <?php endif; ?>
-                <?php endif; ?>
-            </div>
-        </div>
-    <?php endif; ?>
+                    <div class="col-12 mb-3">
+                        <label class="form-label">Lampiran (boleh banyak)</label>
 
-    <!-- Riwayat -->
-    <?php if ($logs): ?>
-        <h6 class="mt-4">Riwayat Keputusan</h6>
-        <ul class="list-group">
-            <?php foreach ($logs as $log): ?>
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>
-                        <strong><?= htmlspecialchars($log['role']) ?></strong>
-                        &mdash;
-                        <?php if ($log['decision'] === 'APPROVED'): ?>
-                            <span class="badge bg-success">Approved</span>
-                        <?php elseif ($log['decision'] === 'REJECTED'): ?>
-                            <span class="badge bg-danger">Rejected</span>
-                        <?php elseif ($log['decision'] === 'CLOSE'): ?>
-                            <span class="badge bg-primary">Closed</span>
-                        <?php elseif ($log['decision'] === 'REACTIVE'): ?>
-                            <span class="badge bg-warning">Reactivated</span>
+                        <div id="dz-create" class="uploader p-4 text-center mb-2" role="button" tabindex="0"
+                            aria-label="Unggah lampiran">
+                            <div class="cloud mb-2">☁⬆</div>
+                            <div class="cta">Click To Upload</div>
+                            <small class="text-muted d-block mt-1">
+                                atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
+                            </small>
+                            <!-- <label for="files-create" class="upload-label-overlay" aria-hidden="true"></label> -->
+                            <div class="upload-label-overlay"></div>
+
+                        </div>
+
+                        <input id="files-create" type="file" name="files[]" class="d-none" multiple
+                            accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx">
+
+                        <ul id="list-create" class="file-list"></ul>
+                    <?php endif; ?>
+
+                <?php endif; ?>
+
+
+                <!-- ✅ INPUT CATATAN SESUAI ROLE -->
+                <div class="mb-3">
+                    <?php if ($role === 'ADMIN_WILAYAH'): ?>
+                        <label class="form-label fw-bold">
+                            Catatan Admin Wilayah
+                            <?php if ($canEdit): ?>
+                                <small class="text-muted">(Revisi)</small>
+                            <?php endif; ?>
+                        </label>
+                        <textarea id="note_role" class="form-control" rows="3"
+                            placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
+
+                    <?php elseif ($role === 'PERWAKILAN_PI'): ?>
+                        <label class="form-label fw-bold">
+                            Catatan Perwakilan PI
+                            <?php if ($canEdit): ?>
+                                <small class="text-muted">(Revisi)</small>
+                            <?php endif; ?>
+                        </label>
+                        <textarea id="note_role" class="form-control" rows="3"
+                            placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
+
+                    <?php elseif ($role === 'ADMIN_PCS'): ?>
+                        <label class="form-label fw-bold">
+                            Catatan Admin PCS
+                            <?php if ($canEdit): ?>
+                                <small class="text-muted">(Revisi)</small>
+                            <?php endif; ?>
+                        </label>
+                        <textarea id="note_role" class="form-control" rows="3"
+                            placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="text-end">
+                    <?php if ($canDecide): ?>
+                        <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
+                            data-role="<?= htmlspecialchars($role) ?>">
+                            <i class="bi bi-check-circle"></i>
+                            <?= $isRevision && $current === $role ? 'Approve Revisi' : 'Approve' ?>
+                        </button>
+                        <?php if ($role !== 'ADMIN_WILAYAH'): ?>
+                            <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
+                                data-role="<?= htmlspecialchars($role) ?>">
+                                <i class="bi bi-x-circle"></i> Reject
+                            </button>
                         <?php endif; ?>
-                    </span>
-                    <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    <?php endif; ?>
-</div>
+                    <?php endif; ?>
+                </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Riwayat -->
+                <?php if ($logs): ?>
+                    <h6 class="mt-4">Riwayat Keputusan</h6>
+                    <ul class="list-group">
+                        <?php foreach ($logs as $log): ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>
+                                    <strong><?= htmlspecialchars($log['role']) ?></strong>
+                                    &mdash;
+                                    <?php if ($log['decision'] === 'APPROVED'): ?>
+                                        <span class="badge bg-success">Approved</span>
+                                    <?php elseif ($log['decision'] === 'REJECTED'): ?>
+                                        <span class="badge bg-danger">Rejected</span>
+                                    <?php elseif ($log['decision'] === 'CLOSE'): ?>
+                                        <span class="badge bg-primary">Closed</span>
+                                    <?php elseif ($log['decision'] === 'REACTIVE'): ?>
+                                        <span class="badge bg-warning">Reactivated</span>
+                                    <?php endif; ?>
+                                </span>
+                                <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+        </div>

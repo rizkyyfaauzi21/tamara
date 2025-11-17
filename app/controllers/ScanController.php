@@ -238,135 +238,143 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
 
     try {
+
+        /* ================== MULAI TRANSAKSI ================== */
+        $conn->beginTransaction();
+
         $invId  = (int)($_POST['invoice_id'] ?? 0);
         $mode   = $_POST['decision'] ?? '';
         $status = ($mode === 'approve') ? 'APPROVED' : 'REJECTED';
 
-        error_log("Invoice ID: $invId | Decision: $mode | Status: $status | Role: $role | User ID: $userId");
-
         if (!$invId) {
-            echo json_encode(['success' => false, 'message' => 'Invoice ID tidak valid']);
-            exit;
+            throw new Exception('Invoice ID tidak valid');
         }
 
+        // Ambil logs untuk validasi giliran
         $stmt = $conn->prepare("
-          SELECT `id`, `role`, `status` AS `decision`, `created_by`, `created_at`
-          FROM `approval_log`
-          WHERE `invoice_id` = ?
-          ORDER BY `created_at` ASC, `id` ASC
+            SELECT id, role, status AS decision, created_by, created_at
+            FROM approval_log
+            WHERE invoice_id = ?
+            ORDER BY created_at ASC, id ASC
         ");
         $stmt->execute([$invId]);
         $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $current = $resolveCurrent($logs);
 
-        error_log("Current role: $current");
-
         if ($current !== $role) {
-            echo json_encode(['success' => false, 'message' => 'Bukan giliran Anda. Current: ' . $current]);
-            exit;
+            throw new Exception('Bukan giliran Anda. Current: ' . $current);
         }
 
-        // ✅ Cegah double decide - kecuali jika sedang REACTIVE
+        // Cek double decide (kecuali REACTIVE)
         $lastLog = $logs ? end($logs) : null;
         $isReactive = ($lastLog && $lastLog['decision'] === 'REACTIVE' && $lastLog['role'] === 'KEUANGAN');
-        
+
         if ($logs && !$isReactive) {
             $last = end($logs);
-            if ((int)$last['created_by'] === $userId && $last['role'] === $role && !in_array($last['decision'], ['CLOSE', 'REACTIVE'])) {
-                echo json_encode(['success' => false, 'message' => 'Anda sudah memberi keputusan untuk siklus ini.']);
-                exit;
+            if ((int)$last['created_by'] === $userId &&
+                $last['role'] === $role &&
+                !in_array($last['decision'], ['CLOSE', 'REACTIVE'])) {
+                throw new Exception('Anda sudah memberi keputusan untuk siklus ini.');
             }
         }
 
-        // Simpan log
+        /* ========== INSERT LOG (jika gagal → rollback) ========== */
         $stmt = $conn->prepare("
-          INSERT INTO `approval_log` (`invoice_id`,`role`,`status`,`created_by`,`created_at`)
-          VALUES (?,?,?,?, NOW())
+            INSERT INTO approval_log (invoice_id, role, status, created_by, created_at)
+            VALUES (?, ?, ?, ?, NOW())
         ");
         $stmt->execute([$invId, $role, $status, $userId]);
-
-        error_log("Approval log inserted successfully");
 
         // Hitung next role
         $i = $idxOf($role);
         $next = null;
         if ($i !== null) {
             if ($status === 'APPROVED') {
-                if (isset($flow[$i + 1])) $next = $flow[$i + 1];
+                $next = $flow[$i+1] ?? null;
             } else {
-                $next = ($i > 0) ? $flow[$i - 1] : $flow[0];
+                $next = ($i > 0) ? $flow[$i-1] : $flow[0];
             }
         }
 
-        error_log("Next role: " . ($next ?? 'NULL'));
-
-        // Ambil data dari POST
+        // Ambil input
         $no_soj = !empty($_POST['no_soj']) ? trim($_POST['no_soj']) : null;
         $no_mmj = !empty($_POST['no_mmj']) ? trim($_POST['no_mmj']) : null;
-        $note_admin_wilayah = !empty($_POST['note_admin_wilayah']) ? trim($_POST['note_admin_wilayah']) : null;
-        $note_perwakilan_pi = !empty($_POST['note_perwakilan_pi']) ? trim($_POST['note_perwakilan_pi']) : null;
-        $note_admin_pcs = !empty($_POST['note_admin_pcs']) ? trim($_POST['note_admin_pcs']) : null;
-        $note_keuangan = !empty($_POST['note_keuangan']) ? trim($_POST['note_keuangan']) : null;
+        $note_admin_wilayah = $_POST['note_admin_wilayah'] ?? null;
+        $note_perwakilan_pi = $_POST['note_perwakilan_pi'] ?? null;
+        $note_admin_pcs = $_POST['note_admin_pcs'] ?? null;
+        $note_keuangan = $_POST['note_keuangan'] ?? null;
 
-        // Update invoice berdasarkan role
+        /* ========== UPDATE INVOICE (bisa gagal UNIQUE → rollback) ========== */
         if ($role === 'ADMIN_WILAYAH') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `note_admin_wilayah` = ?
-                WHERE `id` = ?");
+            $upd = $conn->prepare("
+                UPDATE invoice 
+                SET current_role=?, note_admin_wilayah=?
+                WHERE id=?
+            ");
             $upd->execute([$next, $note_admin_wilayah, $invId]);
+
         } elseif ($role === 'PERWAKILAN_PI') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `note_perwakilan_pi` = ?
-                WHERE `id` = ?");
+            $upd = $conn->prepare("
+                UPDATE invoice 
+                SET current_role=?, note_perwakilan_pi=?
+                WHERE id=?
+            ");
             $upd->execute([$next, $note_perwakilan_pi, $invId]);
+
         } elseif ($role === 'ADMIN_PCS') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `no_soj` = ?, 
-                    `no_mmj` = ?,
-                    `note_admin_pcs` = ?
-                WHERE `id` = ?");
+            $upd = $conn->prepare("
+                UPDATE invoice 
+                SET current_role=?, no_soj=?, no_mmj=?, note_admin_pcs=?
+                WHERE id=?
+            ");
             $upd->execute([$next, $no_soj, $no_mmj, $note_admin_pcs, $invId]);
+
         } elseif ($role === 'KEUANGAN') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `note_keuangan` = ?
-                WHERE `id` = ?");
+            $upd = $conn->prepare("
+                UPDATE invoice 
+                SET current_role=?, note_keuangan=?
+                WHERE id=?
+            ");
             $upd->execute([$next, $note_keuangan, $invId]);
-        } else {
-            $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
-            $upd->execute([$next, $invId]);
         }
 
-        error_log("Invoice updated successfully");
-
-        // Simpan file jika ada (khusus ADMIN_PCS)
+        /* ========== UPLOAD FILE (jika gagal → rollback) ========== */
         $uploadErrors = [];
         if ($role === 'ADMIN_PCS' && !empty($_FILES['files'])) {
-            $savedCount = save_invoice_files($conn, $invId, 'files', $UPLOAD_DIR, $ALLOWED_EXT, $MAX_BYTES, $uploadErrors);
-            error_log("Files saved: $savedCount");
+            $savedCount = save_invoice_files(
+                $conn, 
+                $invId, 
+                'files', 
+                $UPLOAD_DIR, 
+                $ALLOWED_EXT, 
+                $MAX_BYTES, 
+                $uploadErrors
+            );
         }
 
-        $message = 'Keputusan berhasil disimpan';
-        if (!empty($uploadErrors)) {
-            $message .= '. Peringatan: ' . implode(', ', $uploadErrors);
-        }
+        /* ================== COMMIT (JIKA SEMUA SUKSES) ================== */
+        $conn->commit();
 
         echo json_encode([
             'success' => true,
             'next' => $next,
-            'message' => $message
+            'message' => 'Keputusan berhasil disimpan'
         ]);
+        
     } catch (Throwable $e) {
-        error_log("Error in decide action: " . $e->getMessage());
+
+        /* ================== BATALKAN SEMUA PERUBAHAN ================== */
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
+
         echo json_encode([
             'success' => false,
-            'message' => 'Error: ' . $e->getMessage()
+            'message' => $e->getMessage()
         ]);
     }
+
     exit;
 }
 
