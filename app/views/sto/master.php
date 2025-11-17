@@ -218,10 +218,15 @@
               <td><?= htmlspecialchars($s['keterangan'] ?? '') ?></td>
               <td><?= htmlspecialchars($s['created_at']) ?></td>
               <td class="text-nowrap">
-                <button data-id="<?= $s['id'] ?>" class="btn btn-sm btn-warning btn-edit">Detail & Edit</button>
-                <?php if ($s['status'] === 'NOT_USED'): ?>
-
+                <?php if ($s['status'] === 'USED'): ?>
+                  <!-- Jika status USED, hanya tampilkan tombol Lihat -->
+                  <button data-id="<?= $s['id'] ?>" class="btn btn-sm btn-info btn-edit">Lihat</button>
+                <?php else: ?>
+                  <!-- Jika status NOT_USED, tampilkan tombol Detail & Edit -->
+                  <button data-id="<?= $s['id'] ?>" class="btn btn-sm btn-warning btn-edit">Detail & Edit</button>
+                  
                   <?php
+                  // Tombol Hapus hanya muncul jika status NOT_USED
                   $role = $_SESSION['role'];
                   $bolehHapus = false;
 
@@ -248,10 +253,7 @@
                       Hapus
                     </a>
                   <?php endif; ?>
-
                 <?php endif; ?>
-
-
               </td>
               <td>
                 <?php if ($s['status'] === 'NOT_USED'): ?>
@@ -285,6 +287,7 @@
         <?php endif; ?>
       </tbody>
     </table>
+    
     <!-- ================= Kontrol Pagination ================= -->
     <div class="d-flex justify-content-between align-items-center mb-2">
       <div>Menampilkan <span id="count-showing">0</span> dari <span id="count-total">0</span> data</div>
@@ -546,26 +549,39 @@
             document.getElementById('edit-status').value = s.status;
 
             document.getElementById('editForm').dataset.stoStatus = s.status;
-              document.getElementById('edit-pilihan').value = s.pilihan;
-
-
-
+            document.getElementById('edit-pilihan').value = s.pilihan;
 
             // render file existing
             const ul = document.getElementById('current-files');
             ul.innerHTML = '';
+            
+            // Cek apakah status USED
+            const isUsed = s.status === 'USED';
+            
             (s.files || []).forEach(f => {
               const li = document.createElement('li');
               li.className = 'list-group-item d-flex justify-content-between align-items-center';
-              li.innerHTML = `
-            <span>${f.filename} <small class="text-muted">(${(f.size_bytes/1024).toFixed(1)} KB)</small></span>
-            <span>
-              <a class="btn btn-sm btn-outline-primary me-2" target="_blank"
-                 href="<?= htmlspecialchars($filesBaseUrl) ?>${f.stored_name}">Lihat</a>
-              <a class="btn btn-sm btn-outline-danger"
-                 onclick="return confirm('Hapus lampiran ini?')"
-                 href="index.php?page=master_sto&action=del_file&file_id=${f.id}">Hapus</a>
-            </span>`;
+              
+              // Jika status USED, hanya tampilkan tombol Lihat
+              if (isUsed) {
+                li.innerHTML = `
+                  <span>${f.filename} <small class="text-muted">(${(f.size_bytes/1024).toFixed(1)} KB)</small></span>
+                  <span>
+                    <a class="btn btn-sm btn-outline-primary" target="_blank"
+                       href="<?= htmlspecialchars($filesBaseUrl) ?>${f.stored_name}">Lihat</a>
+                  </span>`;
+              } else {
+                // Jika status NOT_USED, tampilkan tombol Lihat dan Hapus
+                li.innerHTML = `
+                  <span>${f.filename} <small class="text-muted">(${(f.size_bytes/1024).toFixed(1)} KB)</small></span>
+                  <span>
+                    <a class="btn btn-sm btn-outline-primary me-2" target="_blank"
+                       href="<?= htmlspecialchars($filesBaseUrl) ?>${f.stored_name}">Lihat</a>
+                    <a class="btn btn-sm btn-outline-danger"
+                       onclick="return confirm('Hapus lampiran ini?')"
+                       href="index.php?page=master_sto&action=del_file&file_id=${f.id}">Hapus</a>
+                  </span>`;
+              }
               ul.appendChild(li);
             });
 
@@ -574,38 +590,36 @@
       });
 
       // submit edit (AJAX)
-     document.getElementById('editForm').addEventListener('submit', e => {
-    e.preventDefault();
+      document.getElementById('editForm').addEventListener('submit', e => {
+        e.preventDefault();
 
-    const oldStatus = e.target.dataset.stoStatus;
-    if (oldStatus === 'USED') {
-        alert('Tidak bisa diedit, STO ini sudah dibuatkan invoicenya.');
-        return;
-    }
-
-    const id = document.getElementById('edit-id').value;
-    const data = new FormData(e.target);
-
-    fetch(`index.php?page=master_sto&id=${id}`, {
-        method: 'POST',
-        body: data
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.success) {
-            editModal.hide();
-            alert('STO berhasil diperbarui.');
-            window.location.reload();
-        } else {
-            alert('Gagal update: ' + res.message);
+        const oldStatus = e.target.dataset.stoStatus;
+        if (oldStatus === 'USED') {
+          alert('Tidak bisa diedit, STO ini sudah dibuatkan invoicenya.');
+          return;
         }
-    })
-    .catch(err => {
-        alert('Terjadi error: ' + err);
-    });
-});
 
+        const id = document.getElementById('edit-id').value;
+        const data = new FormData(e.target);
 
+        fetch(`index.php?page=master_sto&id=${id}`, {
+            method: 'POST',
+            body: data
+          })
+          .then(r => r.json())
+          .then(res => {
+            if (res.success) {
+              editModal.hide();
+              alert('STO berhasil diperbarui.');
+              window.location.reload();
+            } else {
+              alert('Gagal update: ' + res.message);
+            }
+          })
+          .catch(err => {
+            alert('Terjadi error: ' + err);
+          });
+      });
 
       // ========= Tombol Pilih / Belum Dipilih =========
       document.querySelectorAll('.toggle-pilih').forEach(btn => {
@@ -631,14 +645,15 @@
       });
 
       // ========= Pagination Client-Side =========
-      const table = document.querySelector("table.table-striped");
-      const rows = Array.from(table.querySelectorAll("tbody tr"));
+      const table = document.querySelector("#sto-table");
+      const tbody = table.querySelector("tbody");
+      const rows = Array.from(tbody.querySelectorAll("tr"));
       const countShowing = document.getElementById("count-showing");
       const countTotal = document.getElementById("count-total");
       const rowsPerPageSelect = document.getElementById("rowsPerPage");
 
       // filter hanya baris data yang BUKAN empty state
-      const validRows = rows.filter(row => !row.textContent.includes("Belum ada invoice"));
+      const validRows = rows.filter(row => !row.textContent.includes("Belum ada STO"));
       let totalRows = validRows.length;
 
       const paginationContainer = document.createElement("div");
