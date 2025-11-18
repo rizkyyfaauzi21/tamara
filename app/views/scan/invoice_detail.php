@@ -80,81 +80,110 @@
         flex-direction: column;
         gap: .5rem;
     }
+
+    .soj-mmj-display {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .soj-mmj-display .number-box {
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border-radius: 8px;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .soj-mmj-display .number-label {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .soj-mmj-display .number-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
 </style>
 <?php
-// tersedia dari controller: $inv, $lines, $logs, $flow, $role, $userIdView
-$approved = array_column(array_filter($logs, fn($l) => $l['decision'] === 'APPROVED'), 'role');
-$rejected = array_column(array_filter($logs, fn($l) => $l['decision'] === 'REJECTED'), 'role');
-$lastLog = $logs ? end($logs) : null;
-$lastDecision = $lastLog['decision'] ?? null;
-$lastRole     = $lastLog['role'] ?? null;
-$current = $inv['current_role'];
+    // tersedia dari controller: $inv, $lines, $logs, $flow, $role, $userIdView
+    $approved = array_column(array_filter($logs, fn($l) => $l['decision'] === 'APPROVED'), 'role');
+    $rejected = array_column(array_filter($logs, fn($l) => $l['decision'] === 'REJECTED'), 'role');
+    $lastLog = $logs ? end($logs) : null;
+    $lastDecision = $lastLog['decision'] ?? null;
+    $lastRole     = $lastLog['role'] ?? null;
+    $current = $inv['current_role'];
 
-// ✅ Cek apakah Admin PCS sudah approve
-$adminPcsApproved = in_array('ADMIN_PCS', $approved, true);
+    // ✅ Cek apakah Admin PCS sudah approve
+    $adminPcsApproved = in_array('ADMIN_PCS', $approved, true);
 
-// ✅ Cek apakah sedang dalam status REACTIVE atau CLOSE
-$isReactive = ($lastDecision === 'REACTIVE' && $current === 'KEUANGAN');
-$isClosed = ($lastDecision === 'CLOSE' && $current === 'KEUANGAN');
+    // ✅ Cek apakah sedang dalam status REACTIVE atau CLOSE
+    $isReactive = ($lastDecision === 'REACTIVE' && $current === 'KEUANGAN');
+    $isClosed = ($lastDecision === 'CLOSE' && $current === 'KEUANGAN');
 
-$isRevision = !empty($inv['is_revised']) || ($lastDecision === 'REJECTED');
-$revisedBy = $inv['revised_by'] ?? $lastRole ?? null;
-$canEdit = $isRevision && ($current === $role);
+    $isRevision = !empty($inv['is_revised']) || ($lastDecision === 'REJECTED');
+    $revisedBy = $inv['revised_by'] ?? $lastRole ?? null;
+    $canEdit = $isRevision && ($current === $role);
 
-// Reset status hasDecided jika ada revisi atau reactive
-$hasDecided = false;
-if ($logs && !$isReactive) {
-    $lastCycleStartIndex = count($logs) - 1;
-    // Jika ada revisi, cari index terakhir rejection
-    if ($isRevision) {
-        for ($i = count($logs) - 1; $i >= 0; $i--) {
-            if ($logs[$i]['decision'] === 'REJECTED') {
-                $lastCycleStartIndex = $i;
+    // Reset status hasDecided jika ada revisi atau reactive
+    $hasDecided = false;
+    if ($logs && !$isReactive) {
+        $lastCycleStartIndex = count($logs) - 1;
+        // Jika ada revisi, cari index terakhir rejection
+        if ($isRevision) {
+            for ($i = count($logs) - 1; $i >= 0; $i--) {
+                if ($logs[$i]['decision'] === 'REJECTED') {
+                    $lastCycleStartIndex = $i;
+                    break;
+                }
+            }
+        }
+
+        // Cek keputusan hanya dari titik revisi terakhir
+        for ($i = $lastCycleStartIndex; $i < count($logs); $i++) {
+            if (
+                (int)$logs[$i]['created_by'] === (int)($userIdView ?? 0) &&
+                $logs[$i]['role'] === $role &&
+                !in_array($logs[$i]['decision'], ['REACTIVE', 'CLOSE'])
+            ) {
+                $hasDecided = true;
                 break;
             }
         }
     }
 
-    // Cek keputusan hanya dari titik revisi terakhir
-    for ($i = $lastCycleStartIndex; $i < count($logs); $i++) {
-        if (
-            (int)$logs[$i]['created_by'] === (int)($userIdView ?? 0) &&
-            $logs[$i]['role'] === $role &&
-            !in_array($logs[$i]['decision'], ['REACTIVE', 'CLOSE'])
-        ) {
-            $hasDecided = true;
-            break;
+    // Role bisa decide jika:
+    // 1. Ini giliran mereka (current === role) dan belum decide di siklus ini
+    // 2. Atau jika sedang dalam status REACTIVE (KEUANGAN bisa decide lagi)
+    $canDecide = ($current === $role && !$hasDecided) || $isReactive;
+
+    // ✅ Status pesan untuk user
+    if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
+        echo '<div class="alert alert-success mb-3">
+            <i class="bi bi-check-circle"></i> <strong>Invoice sudah ditutup (CLOSE).</strong> 
+            Anda dapat mengaktifkan kembali jika perlu revisi.
+        </div>';
+    } elseif ($isReactive && $role === 'KEUANGAN') {
+        echo '<div class="alert alert-warning mb-3">
+            <i class="bi bi-arrow-clockwise"></i> <strong>Invoice dalam status REACTIVE.</strong> 
+            Anda dapat melakukan revisi (reject) atau menutup (close) invoice ini.
+        </div>';
+    } elseif ($hasDecided && !$isReactive) {
+        echo '<p class="text-warning">Anda sudah memberikan keputusan untuk siklus ini.</p>';
+    } elseif (!empty($current)) {
+        if ($current === $role) {
+            echo '<p class="text-primary"><strong>Giliran Anda untuk memberikan keputusan.</strong></p>';
+        } else {
+            echo '<p class="text-muted">Menunggu keputusan <strong>' . htmlspecialchars($current) . '</strong>.</p>';
         }
-    }
-}
-
-// Role bisa decide jika:
-// 1. Ini giliran mereka (current === role) dan belum decide di siklus ini
-// 2. Atau jika sedang dalam status REACTIVE (KEUANGAN bisa decide lagi)
-$canDecide = ($current === $role && !$hasDecided) || $isReactive;
-
-// ✅ Status pesan untuk user
-if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
-    echo '<div class="alert alert-success mb-3">
-        <i class="bi bi-check-circle"></i> <strong>Invoice sudah ditutup (CLOSE).</strong> 
-        Anda dapat mengaktifkan kembali jika perlu revisi.
-    </div>';
-} elseif ($isReactive && $role === 'KEUANGAN') {
-    echo '<div class="alert alert-warning mb-3">
-        <i class="bi bi-arrow-clockwise"></i> <strong>Invoice dalam status REACTIVE.</strong> 
-        Anda dapat melakukan revisi (reject) atau menutup (close) invoice ini.
-    </div>';
-} elseif ($hasDecided && !$isReactive) {
-    echo '<p class="text-warning">Anda sudah memberikan keputusan untuk siklus ini.</p>';
-} elseif (!empty($current)) {
-    if ($current === $role) {
-        echo '<p class="text-primary"><strong>Giliran Anda untuk memberikan keputusan.</strong></p>';
     } else {
-        echo '<p class="text-muted">Menunggu keputusan <strong>' . htmlspecialchars($current) . '</strong>.</p>';
+        echo '<p class="text-success"><strong>PROSES SELESAI.</strong></p>';
     }
-} else {
-    echo '<p class="text-success"><strong>PROSES SELESAI.</strong></p>';
-}
 ?>
 <div class="card mb-3 p-3">
     <h5>
@@ -308,7 +337,27 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
             </div>
         </div>
     </div>
+    
+    <!-- ✅ TAMPILKAN SOJ & MMJ JIKA ADMIN PCS SUDAH APPROVE -->
+    <?php if ($adminPcsApproved && !empty($inv['no_soj']) && !empty($inv['no_mmj'])): ?>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Nomor MMJ <span class="text-danger">*</span></label>
+                <div class="form-control bg-light">
+                    <?= htmlspecialchars($inv['no_mmj'] ?? '-') ?>
+                </div>
+            </div>
 
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Nomor SOJ <span class="text-danger">*</span></label>
+                <div class="form-control bg-light">
+                    <?= htmlspecialchars($inv['no_soj'] ?? '-') ?>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    
     <!-- ✅ SECTION FILE LAMPIRAN -->
     <?php if (!empty($invoiceFiles ?? [])): ?>
         <div class="mb-4">
@@ -328,18 +377,14 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                         $fileUrl = htmlspecialchars($baseUrl . $file['stored_name']);
                         ?>
                         <div class="">
-
                             <a href="download/download.php?file=<?= urlencode($file['stored_name']) ?>"
                                 class="btn btn-sm btn-outline-success">
                                 <i class="bi bi-download"></i> Download
                             </a>
-
-
                             <a href="<?= $fileUrl ?>" target="_blank" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-eye"></i> Lihat
                             </a>
                         </div>
-
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -359,29 +404,9 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                 </button>
             </div>
 
-        <?php elseif ($current === 'KEUANGAN' && !$hasDecided): ?>
+        <?php elseif ($current === 'KEUANGAN' && ($canDecide || $isReactive)): ?>
             <!-- ✅ KEUANGAN sedang giliran: tampilkan form -->
             <div class="mb-4 mt-3">
-                <!-- ✅ SOJ dan MMJ hanya tampil jika Admin PCS sudah approve -->
-                <?php if ($adminPcsApproved): ?>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Nomor MMJ</label>
-                            <input type="text" id="no_mmj" class="form-control"
-                                value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>" disabled>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nomor SOJ</label>
-                            <input type="text" id="no_soj" class="form-control"
-                                value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>" disabled>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <div class="alert alert-info mb-3">
-                        <i class="bi bi-info-circle"></i> Nomor SOJ dan MMJ akan ditampilkan setelah Admin PCS melakukan approve.
-                    </div>
-                <?php endif; ?>
-
                 <div class="mb-3">
                     <label class="form-label fw-bold">
                         Catatan Keuangan
@@ -426,34 +451,66 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
             </div>
         <?php endif; ?>
 
-
-
-    <?php elseif ($canDecide || $canEdit || ($role === 'ADMIN_PCS' && $adminPcsApproved)): ?>
-
+    <?php elseif ($canDecide || $canEdit): ?>
         <!-- Form untuk role lain (ADMIN_WILAYAH, PERWAKILAN_PI, ADMIN_PCS) -->
         <div class="mb-4 mt-3">
-            <!-- Form fields section -->
             <?php if ($role === 'ADMIN_PCS'): ?>
+                <?php 
+                // ✅ Cek apakah No MMJ dan No SOJ sama
+                $mmjSojSame = false;
+                if (!empty($inv['no_mmj']) && !empty($inv['no_soj']) && 
+                    trim($inv['no_mmj']) === trim($inv['no_soj'])) {
+                    $mmjSojSame = true;
+                }
+
+                // ✅ Cek apakah ada pesan sistem tentang duplicate
+                $hasDuplicateWarning = false;
+                if (!empty($inv['note_admin_pcs']) && strpos($inv['note_admin_pcs'], '[SISTEM]') !== false) {
+                    $hasDuplicateWarning = true;
+                }
+                ?>
+
+                <?php if ($hasDuplicateWarning): ?>
+                    <div class="alert alert-danger mb-3">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Peringatan Sistem:</strong><br>
+                        Nomor SOJ atau MMJ yang Anda input sebelumnya sudah digunakan di invoice lain!<br>
+                        <small class="mt-2 d-block">Silakan input nomor yang berbeda dan lakukan approve kembali.</small>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($mmjSojSame): ?>
+                    <div class="alert alert-danger mb-3">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Error:</strong> Nomor MMJ dan SOJ tidak boleh sama! Silakan perbaiki.
+                    </div>
+                <?php endif; ?>
+
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <label class="form-label">Nomor MMJ</label>
-                        <input type="text" id="no_mmj" class="form-control"
+                        <label class="form-label">Nomor MMJ <span class="text-danger">*</span></label>
+                        <input type="text" id="no_mmj" class="form-control <?= $mmjSojSame ? 'is-invalid' : '' ?>"
                             value="<?= htmlspecialchars($inv['no_mmj'] ?? '') ?>"
                             <?= (!$canEdit && !$canDecide) ? 'disabled' : '' ?>>
+                        <?php if ($mmjSojSame): ?>
+                            <div class="invalid-feedback">Nomor MMJ tidak boleh sama dengan SOJ</div>
+                        <?php endif; ?>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Nomor SOJ</label>
-                        <input type="text" id="no_soj" class="form-control"
+                        <label class="form-label">Nomor SOJ <span class="text-danger">*</span></label>
+                        <input type="text" id="no_soj" class="form-control <?= $mmjSojSame ? 'is-invalid' : '' ?>"
                             value="<?= htmlspecialchars($inv['no_soj'] ?? '') ?>"
                             <?= (!$canEdit && !$canDecide) ? 'disabled' : '' ?>>
+                        <?php if ($mmjSojSame): ?>
+                            <div class="invalid-feedback">Nomor SOJ tidak boleh sama dengan MMJ</div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
-                <!-- Upload Multi File (ADMIN_PCS) — SELALU RENDER untuk ADMIN_PCS -->
+                <!-- Upload Multi File (ADMIN_PCS) -->
                 <?php if ($canDecide): ?>
-                    <div class="col-12 mb-3">
+                    <div class="mb-3">
                         <label class="form-label">Lampiran (boleh banyak)</label>
-
                         <div id="dz-create" class="uploader p-4 text-center mb-2" role="button" tabindex="0"
                             aria-label="Unggah lampiran">
                             <div class="cloud mb-2">☁⬆</div>
@@ -461,95 +518,90 @@ if ($isClosed && !$isReactive && $role === 'KEUANGAN') {
                             <small class="text-muted d-block mt-1">
                                 atau drag & drop file ke sini • Maks 10MB/file • pdf, jpg, png, xls, xlsx
                             </small>
-                            <!-- <label for="files-create" class="upload-label-overlay" aria-hidden="true"></label> -->
                             <div class="upload-label-overlay"></div>
-
                         </div>
-
                         <input id="files-create" type="file" name="files[]" class="d-none" multiple
                             accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx">
-
                         <ul id="list-create" class="file-list"></ul>
-                    <?php endif; ?>
-
-                <?php endif; ?>
-
-
-                <!-- ✅ INPUT CATATAN SESUAI ROLE -->
-                <div class="mb-3">
-                    <?php if ($role === 'ADMIN_WILAYAH'): ?>
-                        <label class="form-label fw-bold">
-                            Catatan Admin Wilayah
-                            <?php if ($canEdit): ?>
-                                <small class="text-muted">(Revisi)</small>
-                            <?php endif; ?>
-                        </label>
-                        <textarea id="note_role" class="form-control" rows="3"
-                            placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
-
-                    <?php elseif ($role === 'PERWAKILAN_PI'): ?>
-                        <label class="form-label fw-bold">
-                            Catatan Perwakilan PI
-                            <?php if ($canEdit): ?>
-                                <small class="text-muted">(Revisi)</small>
-                            <?php endif; ?>
-                        </label>
-                        <textarea id="note_role" class="form-control" rows="3"
-                            placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
-
-                    <?php elseif ($role === 'ADMIN_PCS'): ?>
-                        <label class="form-label fw-bold">
-                            Catatan Admin PCS
-                            <?php if ($canEdit): ?>
-                                <small class="text-muted">(Revisi)</small>
-                            <?php endif; ?>
-                        </label>
-                        <textarea id="note_role" class="form-control" rows="3"
-                            placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
-                    <?php endif; ?>
-                </div>
-
-                <!-- Action buttons -->
-                <div class="text-end">
-                    <?php if ($canDecide): ?>
-                        <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
-                            data-role="<?= htmlspecialchars($role) ?>">
-                            <i class="bi bi-check-circle"></i>
-                            <?= $isRevision && $current === $role ? 'Approve Revisi' : 'Approve' ?>
-                        </button>
-                        <?php if ($role !== 'ADMIN_WILAYAH'): ?>
-                            <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
-                                data-role="<?= htmlspecialchars($role) ?>">
-                                <i class="bi bi-x-circle"></i> Reject
-                            </button>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                </div>
                     </div>
                 <?php endif; ?>
+            <?php endif; ?>
 
-                <!-- Riwayat -->
-                <?php if ($logs): ?>
-                    <h6 class="mt-4">Riwayat Keputusan</h6>
-                    <ul class="list-group">
-                        <?php foreach ($logs as $log): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>
-                                    <strong><?= htmlspecialchars($log['role']) ?></strong>
-                                    &mdash;
-                                    <?php if ($log['decision'] === 'APPROVED'): ?>
-                                        <span class="badge bg-success">Approved</span>
-                                    <?php elseif ($log['decision'] === 'REJECTED'): ?>
-                                        <span class="badge bg-danger">Rejected</span>
-                                    <?php elseif ($log['decision'] === 'CLOSE'): ?>
-                                        <span class="badge bg-primary">Closed</span>
-                                    <?php elseif ($log['decision'] === 'REACTIVE'): ?>
-                                        <span class="badge bg-warning">Reactivated</span>
-                                    <?php endif; ?>
-                                </span>
-                                <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
+            <!-- ✅ INPUT CATATAN SESUAI ROLE -->
+            <div class="mb-3">
+                <?php if ($role === 'ADMIN_WILAYAH'): ?>
+                    <label class="form-label fw-bold">
+                        Catatan Admin Wilayah
+                        <?php if ($canEdit): ?>
+                            <small class="text-muted">(Revisi)</small>
+                        <?php endif; ?>
+                    </label>
+                    <textarea id="note_role" class="form-control" rows="3"
+                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_wilayah'] ?? '') ?></textarea>
+
+                <?php elseif ($role === 'PERWAKILAN_PI'): ?>
+                    <label class="form-label fw-bold">
+                        Catatan Perwakilan PI
+                        <?php if ($canEdit): ?>
+                            <small class="text-muted">(Revisi)</small>
+                        <?php endif; ?>
+                    </label>
+                    <textarea id="note_role" class="form-control" rows="3"
+                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_perwakilan_pi'] ?? '') ?></textarea>
+
+                <?php elseif ($role === 'ADMIN_PCS'): ?>
+                    <label class="form-label fw-bold">
+                        Catatan Admin PCS
+                        <?php if ($canEdit): ?>
+                            <small class="text-muted">(Revisi)</small>
+                        <?php endif; ?>
+                    </label>
+                    <textarea id="note_role" class="form-control" rows="3"
+                        placeholder="<?= $canEdit ? 'Tambahkan catatan revisi Anda...' : 'Masukkan catatan Anda...' ?>"><?= htmlspecialchars($inv['note_admin_pcs'] ?? '') ?></textarea>
                 <?php endif; ?>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="text-end">
+                <?php if ($canDecide): ?>
+                    <button class="btn btn-success btn-decision" data-decision="approve" data-id="<?= (int)$inv['id'] ?>"
+                        data-role="<?= htmlspecialchars($role) ?>">
+                        <i class="bi bi-check-circle"></i>
+                        <?= $isRevision && $current === $role ? 'Approve Revisi' : 'Approve' ?>
+                    </button>
+                    <?php if ($role !== 'ADMIN_WILAYAH'): ?>
+                        <button class="btn btn-danger btn-decision" data-decision="reject" data-id="<?= (int)$inv['id'] ?>"
+                            data-role="<?= htmlspecialchars($role) ?>">
+                            <i class="bi bi-x-circle"></i> Reject
+                        </button>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
         </div>
+    <?php endif; ?>
+
+    <!-- Riwayat -->
+    <?php if ($logs): ?>
+        <h6 class="mt-4">Riwayat Keputusan</h6>
+        <ul class="list-group">
+            <?php foreach ($logs as $log): ?>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>
+                        <strong><?= htmlspecialchars($log['role']) ?></strong>
+                        &mdash;
+                        <?php if ($log['decision'] === 'APPROVED'): ?>
+                            <span class="badge bg-success">Approved</span>
+                        <?php elseif ($log['decision'] === 'REJECTED'): ?>
+                            <span class="badge bg-danger">Rejected</span>
+                        <?php elseif ($log['decision'] === 'CLOSE'): ?>
+                            <span class="badge bg-primary">Closed</span>
+                        <?php elseif ($log['decision'] === 'REACTIVE'): ?>
+                            <span class="badge bg-warning">Reactivated</span>
+                        <?php endif; ?>
+                    </span>
+                    <small class="text-muted"><?= htmlspecialchars($log['created_at']) ?></small>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    <?php endif; ?>
+</div>

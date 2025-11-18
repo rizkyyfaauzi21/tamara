@@ -96,7 +96,6 @@ require __DIR__ . '/../layout/header.php';
                 statusElem.textContent = 'Arahkan kamera ke QR code invoice';
                 busy = false;
             })
-
             .catch(err => {
                 detailDiv.innerHTML = `<div class="alert alert-warning">
                 Tagihan ini tidak dapat diakses karena tidak sesuai dengan wilayah Anda.
@@ -143,6 +142,21 @@ require __DIR__ . '/../layout/header.php';
                     if (!no_mmj || !no_soj) {
                         alert("⚠️ Harap isi Nomor MMJ dan Nomor SOJ sebelum melakukan approve!");
                         return;
+                    }
+
+                    // ✅ VALIDASI: No MMJ dan No SOJ tidak boleh sama
+                    if (no_mmj.toLowerCase() === no_soj.toLowerCase()) {
+                        alert("⚠️ Nomor MMJ dan SOJ tidak boleh sama! Silakan perbaiki.");
+                        
+                        // Tandai input dengan border merah
+                        if (no_soj_input) no_soj_input.classList.add('is-invalid');
+                        if (no_mmj_input) no_mmj_input.classList.add('is-invalid');
+                        
+                        return;
+                    } else {
+                        // Hapus border merah jika valid
+                        if (no_soj_input) no_soj_input.classList.remove('is-invalid');
+                        if (no_mmj_input) no_mmj_input.classList.remove('is-invalid');
                     }
                 }
 
@@ -198,6 +212,8 @@ require __DIR__ . '/../layout/header.php';
                     for (let i = 0; i < filesToAppend.length; i++) {
                         formData.append('files[]', filesToAppend[i]);
                     }
+
+                    console.log('Files to upload:', filesToAppend.length);
                 } else if (role === 'KEUANGAN') {
                     formData.append('note_keuangan', note_value);
                 }
@@ -208,8 +224,7 @@ require __DIR__ . '/../layout/header.php';
                     no_mmj: no_mmj,
                     no_soj: no_soj,
                     note: note_value,
-                    files_count: role === 'ADMIN_PCS' && document.getElementById('files-create')
-                        ?.files?.length || 0
+                    files_count: role === 'ADMIN_PCS' && document.getElementById('files-create')?._dt?.files?.length || 0
                 });
 
                 fetch('index.php?page=scan&action=decide', {
@@ -222,7 +237,34 @@ require __DIR__ . '/../layout/header.php';
                     })
                     .then(js => {
                         console.log("Respon dari server:", js);
-                        if (!js.success) throw new Error(js.message || 'Gagal menyimpan keputusan');
+                        if (!js.success) {
+                            // ✅ Handling khusus untuk duplicate entry
+                            if (js.duplicate) {
+                                detailDiv.innerHTML = `<div class="alert alert-danger">
+                                    <h5 class="alert-heading">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> 
+                                        Nomor SOJ/MMJ Sudah Digunakan!
+                                    </h5>
+                                    <hr>
+                                    <p class="mb-2">${js.message}</p>
+                                    <small class="d-block mt-3">
+                                        <strong>Yang perlu dilakukan:</strong>
+                                        <ol class="mb-0 mt-2">
+                                            <li>Scan ulang invoice ini</li>
+                                            <li>Input nomor SOJ dan MMJ yang <strong>berbeda</strong></li>
+                                            <li>Klik Approve untuk mengirim ke KEUANGAN</li>
+                                        </ol>
+                                    </small>
+                                    <div class="mt-3">
+                                        <i class="bi bi-info-circle"></i> 
+                                        <small>Invoice masih di: <strong>${js.current_role}</strong></small>
+                                    </div>
+                                </div>`;
+                            } else {
+                                throw new Error(js.message || 'Gagal menyimpan keputusan');
+                            }
+                            return;
+                        }
 
                         if (mode === 'reject') {
                             detailDiv.innerHTML = `<div class="alert alert-warning">

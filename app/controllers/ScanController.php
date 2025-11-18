@@ -279,6 +279,26 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Ambil data dari POST
+        $no_soj = !empty($_POST['no_soj']) ? trim($_POST['no_soj']) : null;
+        $no_mmj = !empty($_POST['no_mmj']) ? trim($_POST['no_mmj']) : null;
+        $note_admin_wilayah = !empty($_POST['note_admin_wilayah']) ? trim($_POST['note_admin_wilayah']) : null;
+        $note_perwakilan_pi = !empty($_POST['note_perwakilan_pi']) ? trim($_POST['note_perwakilan_pi']) : null;
+        $note_admin_pcs = !empty($_POST['note_admin_pcs']) ? trim($_POST['note_admin_pcs']) : null;
+        $note_keuangan = !empty($_POST['note_keuangan']) ? trim($_POST['note_keuangan']) : null;
+
+        // ✅ Validasi: No MMJ dan No SOJ tidak boleh sama (khusus ADMIN_PCS)
+        if ($role === 'ADMIN_PCS' && !empty($no_soj) && !empty($no_mmj)) {
+            if (strtolower($no_soj) === strtolower($no_mmj)) {
+                error_log("Validation error: No SOJ dan No MMJ sama - SOJ: $no_soj, MMJ: $no_mmj");
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Nomor SOJ dan MMJ tidak boleh sama! Silakan perbaiki.'
+                ]);
+                exit;
+            }
+        }
+
         // Simpan log
         $stmt = $conn->prepare("
           INSERT INTO `approval_log` (`invoice_id`,`role`,`status`,`created_by`,`created_at`)
@@ -301,47 +321,107 @@ if ($action === 'decide' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         error_log("Next role: " . ($next ?? 'NULL'));
 
-        // Ambil data dari POST
-        $no_soj = !empty($_POST['no_soj']) ? trim($_POST['no_soj']) : null;
-        $no_mmj = !empty($_POST['no_mmj']) ? trim($_POST['no_mmj']) : null;
-        $note_admin_wilayah = !empty($_POST['note_admin_wilayah']) ? trim($_POST['note_admin_wilayah']) : null;
-        $note_perwakilan_pi = !empty($_POST['note_perwakilan_pi']) ? trim($_POST['note_perwakilan_pi']) : null;
-        $note_admin_pcs = !empty($_POST['note_admin_pcs']) ? trim($_POST['note_admin_pcs']) : null;
-        $note_keuangan = !empty($_POST['note_keuangan']) ? trim($_POST['note_keuangan']) : null;
-
         // Update invoice berdasarkan role
-        if ($role === 'ADMIN_WILAYAH') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `note_admin_wilayah` = ?
-                WHERE `id` = ?");
-            $upd->execute([$next, $note_admin_wilayah, $invId]);
-        } elseif ($role === 'PERWAKILAN_PI') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `note_perwakilan_pi` = ?
-                WHERE `id` = ?");
-            $upd->execute([$next, $note_perwakilan_pi, $invId]);
-        } elseif ($role === 'ADMIN_PCS') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `no_soj` = ?, 
-                    `no_mmj` = ?,
-                    `note_admin_pcs` = ?
-                WHERE `id` = ?");
-            $upd->execute([$next, $no_soj, $no_mmj, $note_admin_pcs, $invId]);
-        } elseif ($role === 'KEUANGAN') {
-            $upd = $conn->prepare("UPDATE `invoice` 
-                SET `current_role` = ?, 
-                    `note_keuangan` = ?
-                WHERE `id` = ?");
-            $upd->execute([$next, $note_keuangan, $invId]);
-        } else {
-            $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
-            $upd->execute([$next, $invId]);
-        }
+        try {
+            if ($role === 'ADMIN_WILAYAH') {
+                $upd = $conn->prepare("UPDATE `invoice` 
+                    SET `current_role` = ?, 
+                        `note_admin_wilayah` = ?
+                    WHERE `id` = ?");
+                $upd->execute([$next, $note_admin_wilayah, $invId]);
+            } elseif ($role === 'PERWAKILAN_PI') {
+                $upd = $conn->prepare("UPDATE `invoice` 
+                    SET `current_role` = ?, 
+                        `note_perwakilan_pi` = ?
+                    WHERE `id` = ?");
+                $upd->execute([$next, $note_perwakilan_pi, $invId]);
+            } elseif ($role === 'ADMIN_PCS') {
+                // ✅ Set NULL jika No MMJ dan SOJ sama (validasi ganda)
+                if (!empty($no_soj) && !empty($no_mmj) && strtolower($no_soj) === strtolower($no_mmj)) {
+                    $no_soj = null;
+                    $no_mmj = null;
+                }
+                
+                $upd = $conn->prepare("UPDATE `invoice` 
+                    SET `current_role` = ?, 
+                        `no_soj` = ?, 
+                        `no_mmj` = ?,
+                        `note_admin_pcs` = ?
+                    WHERE `id` = ?");
+                $upd->execute([$next, $no_soj, $no_mmj, $note_admin_pcs, $invId]);
+            } elseif ($role === 'KEUANGAN') {
+                $upd = $conn->prepare("UPDATE `invoice` 
+                    SET `current_role` = ?, 
+                        `note_keuangan` = ?
+                    WHERE `id` = ?");
+                $upd->execute([$next, $note_keuangan, $invId]);
+            } else {
+                $upd = $conn->prepare("UPDATE `invoice` SET `current_role` = ? WHERE `id` = ?");
+                $upd->execute([$next, $invId]);
+            }
 
-        error_log("Invoice updated successfully");
+            error_log("Invoice updated successfully");
+
+        } catch (PDOException $e) {
+            // ✅ Handle duplicate entry untuk No SOJ atau No MMJ
+            if ($e->getCode() == 23000 && (strpos($e->getMessage(), 'unique_no_soj') !== false || strpos($e->getMessage(), 'unique_no_mmj') !== false)) {
+                error_log("DUPLICATE ENTRY DETECTED: " . $e->getMessage());
+                
+                // ✅ PENTING: Hapus approval log yang baru saja dibuat (bukan rollback ke role sebelumnya)
+                $conn->beginTransaction();
+                
+                try {
+                    // Hapus log approval yang baru dibuat
+                    $deleteLog = $conn->prepare("
+                        DELETE FROM `approval_log` 
+                        WHERE `invoice_id` = ? 
+                        AND `role` = ?
+                        AND `status` = 'APPROVED'
+                        ORDER BY `id` DESC 
+                        LIMIT 1
+                    ");
+                    $deleteLog->execute([$invId, $role]);
+                    
+                    // ✅ TIDAK membuat rejection log, karena tidak ada reject ke role lain
+                    // Invoice tetap di ADMIN_PCS dengan status yang sama (menunggu input ulang)
+                    
+                    // Update invoice: SET current_role tetap di ADMIN_PCS, tambahkan note sistem
+                    $rollbackUpdate = $conn->prepare("
+                        UPDATE `invoice` 
+                        SET `current_role` = 'ADMIN_PCS',
+                            `no_soj` = NULL,
+                            `no_mmj` = NULL,
+                            `note_admin_pcs` = CONCAT(
+                                COALESCE(`note_admin_pcs`, ''), 
+                                '\n\n[SISTEM - ', NOW(), '] Nomor SOJ/MMJ sudah digunakan di invoice lain. Harap input nomor yang berbeda dan approve kembali.'
+                            )
+                        WHERE `id` = ?
+                    ");
+                    $rollbackUpdate->execute([$invId]);
+                    
+                    $conn->commit();
+                    
+                    error_log("ROLLBACK SUCCESS: Invoice #$invId dikembalikan ke ADMIN_PCS untuk input ulang");
+                    
+                } catch (Exception $rollbackErr) {
+                    $conn->rollBack();
+                    error_log("ROLLBACK FAILED: " . $rollbackErr->getMessage());
+                    throw $rollbackErr;
+                }
+                
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Nomor SOJ atau MMJ sudah digunakan di invoice lain! Silakan input nomor yang berbeda dan approve kembali.',
+                    'duplicate' => true,
+                    'current_role' => 'ADMIN_PCS',
+                    'action_required' => 'INPUT_ULANG'
+                ]);
+                exit;
+            }
+            
+            // Error lainnya
+            throw $e;
+        }
 
         // Simpan file jika ada (khusus ADMIN_PCS)
         $uploadErrors = [];
