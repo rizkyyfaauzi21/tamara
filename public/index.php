@@ -55,6 +55,9 @@ switch ($page) {
     case 'scan':
         require __DIR__.'/../app/controllers/ScanController.php';
         break;
+    case 'rekap':
+        require __DIR__.'/../app/controllers/RekapController.php';
+        break;
     case 'logout':
         $_SESSION = [];
         if (ini_get("session.use_cookies")) {
