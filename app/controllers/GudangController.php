@@ -200,8 +200,36 @@ if ($action === 'tarif' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $tarif_normal = $_POST['tarif_normal'];
     $tarif_lembur = $_POST['tarif_lembur'];
 
+    // === VALIDASI DUPLIKASI ===
+    $checkSql = "SELECT id FROM gudang_tarif 
+                 WHERE gudang_id = :gudang_id 
+                 AND jenis_transaksi = :jenis_transaksi";
+
+    $params = [
+        'gudang_id' => $gudang_id,
+        'jenis_transaksi' => $jenis_transaksi
+    ];
+
+    // Kalau update, jangan cek dirinya sendiri
     if (!empty($_POST['id'])) {
-        // Update tarif
+        $checkSql .= " AND id != :id";
+        $params['id'] = $_POST['id'];
+    }
+
+    $checkStmt = $conn->prepare($checkSql);
+    $checkStmt->execute($params);
+
+    if ($checkStmt->rowCount() > 0) {
+        $_SESSION['error'] = "Tarif gudang untuk jenis transaksi ini sudah ada.";
+        header("Location: index.php?page=gudang");
+        exit;
+    }
+    // === END VALIDASI ===
+
+
+    // === INSERT ATAU UPDATE ===
+    if (!empty($_POST['id'])) {
+        // Update
         $stmt = $conn->prepare("UPDATE gudang_tarif 
             SET gudang_id = :gudang_id,
                 jenis_transaksi = :jenis_transaksi,
@@ -217,7 +245,7 @@ if ($action === 'tarif' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $_SESSION['success'] = "Tarif gudang berhasil diperbarui.";
     } else {
-        // Tambah tarif baru
+        // Insert baru
         $stmt = $conn->prepare("INSERT INTO gudang_tarif 
             (gudang_id, jenis_transaksi, tarif_normal, tarif_lembur)
             VALUES (:gudang_id, :jenis_transaksi, :tarif_normal, :tarif_lembur)");
@@ -233,6 +261,7 @@ if ($action === 'tarif' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: index.php?page=gudang");
     exit;
 }
+
 
 if ($action === 'tarif' && isset($_GET['delete'])) {
     $id = $_GET['delete'];

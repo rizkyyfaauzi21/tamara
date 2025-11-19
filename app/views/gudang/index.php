@@ -9,6 +9,10 @@
         <div class="alert alert-success"><?= $_SESSION['success'];
                                             unset($_SESSION['success']); ?></div>
     <?php endif; ?>
+    <?php if (isset($_SESSION['error'])): ?>
+        <div class="alert alert-danger"><?= $_SESSION['error'];
+                                            unset($_SESSION['error']); ?></div>
+    <?php endif; ?>
 
     <!-- ===================================== -->
     <!-- 1. KELOLA WILAYAH -->
