@@ -552,3 +552,17 @@ label[for*="wilayah"] {
   color: #d32f2f !important;
 }
 
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .modal, .modal * {
+    visibility: visible !important;
+  }
+
+  .modal-footer {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
